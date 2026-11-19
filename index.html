@@ -30,6 +30,7 @@ input[type=number],select,input[type=text]{background:var(--field);color:var(--t
 .unit{width:18px;color:var(--dim)}
 button{background:#3c3c3c;color:var(--text);border:1px solid #2a2a2a;border-radius:3px;padding:4px 10px;font:inherit;cursor:pointer}
 button:hover{background:#474747}
+button:disabled{opacity:.45;cursor:default}
 button.primary{background:var(--accent);border-color:var(--accent);border-radius:14px;padding:6px 18px;font-weight:600}
 #dial{display:flex;gap:12px;align-items:center}
 #dial svg{flex:none;cursor:pointer;touch-action:none}
@@ -294,7 +295,7 @@ for(const s of SLIDERS){
 const ptsInfo=document.createElement('div'); ptsInfo.className='hint';
 const ptsClear=document.createElement('button'); ptsClear.textContent='Убрать все точки'; ptsClear.style.marginTop='6px';
 grpEls.pts.body.append(ptsInfo,ptsClear);
-function showPts(){ const n=(P.pts||[]).length; ptsInfo.textContent=n?`Точек: ${n}`:'Точек нет — одна линия земли по самой нижней точке.'; ptsClear.disabled=!n; }
+function showPts(){ const n=(P.pts||[]).length; ptsInfo.textContent=n?`Точек: ${n}`:'Точек нет — одна линия земли по самой нижней точке.'; ptsClear.hidden=!n; }
 ptsClear.addEventListener('click',()=>{ P.pts=[]; lastKey='pts'; showPts(); schedule(true); });
 // max shadow width / height in source pixels; empty = no limit
 const limWEl=document.createElement('input'), limHEl=document.createElement('input');
