@@ -1,0 +1,865 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Генератор теней</title>
+<style>
+:root{
+  --panel:#535353; --panel2:#454545; --field:#1e1e1e; --text:#e6e6e6; --dim:#b4b4b4;
+  --line:#6a6a6a; --accent:#1473e6; --stage:#2b2b2b;
+  color-scheme: dark;   /* single dark look, like a Photoshop panel */
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--stage);color:var(--text);font:12px/1.35 "Segoe UI",Arial,sans-serif}
+#app{display:flex;height:100%}
+#panel{width:300px;flex:none;background:var(--panel);overflow-y:auto;padding:10px 12px 16px;border-right:1px solid #3a3a3a}
+#main{flex:1;display:flex;flex-direction:column;min-width:0}
+#bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:8px 10px;background:var(--panel2);border-bottom:1px solid #333}
+#view{flex:1;overflow:auto;display:flex;align-items:center;justify-content:center;padding:12px}
+canvas#out{max-width:100%;max-height:100%;box-shadow:0 0 0 1px #000;cursor:default}
+h1{font-size:13px;margin:0 0 8px;font-weight:600}
+.sec{border-top:1px solid #626262;padding-top:8px;margin-top:10px}
+.row{display:flex;align-items:center;gap:8px;margin:5px 0}
+.lbl{color:var(--dim);margin:6px 0 2px}
+.sl{display:flex;align-items:center;gap:8px}
+.sl input[type=range]{flex:1;accent-color:#d8d8d8}
+.sl input[type=number]{width:58px}
+input[type=number],select,input[type=text]{background:var(--field);color:var(--text);border:1px solid #2a2a2a;border-radius:3px;padding:3px 5px;font:inherit}
+.unit{width:18px;color:var(--dim)}
+button{background:#3c3c3c;color:var(--text);border:1px solid #2a2a2a;border-radius:3px;padding:4px 10px;font:inherit;cursor:pointer}
+button:hover{background:#474747}
+button.primary{background:var(--accent);border-color:var(--accent);border-radius:14px;padding:6px 18px;font-weight:600}
+#dial{display:flex;gap:12px;align-items:center}
+#dial svg{flex:none;cursor:pointer;touch-action:none}
+.dfields{display:flex;flex-direction:column;gap:6px;align-items:flex-end}
+.dfields label{display:flex;align-items:center;gap:6px;color:var(--dim)}
+.dfields input{width:56px}
+.hint{color:#9a9a9a;font-size:11px}
+label.chk{display:flex;align-items:center;gap:6px;cursor:pointer}
+input[type=color]{width:34px;height:24px;border:1px solid #222;padding:0;background:none}
+#stat{color:#9a9a9a;margin-left:auto}
+.seg{display:flex;border:1px solid #2a2a2a;border-radius:4px;overflow:hidden}
+.seg button{flex:1;border:0;border-radius:0;background:#3c3c3c;padding:6px 0}
+.seg button+button{border-left:1px solid #2a2a2a}
+button.primary.dirty{box-shadow:0 0 0 2px #ffb020}
+#main{position:relative}
+#sliders{display:flex;flex-direction:column;gap:10px;border-top:0;padding-top:0}
+.grp{background:var(--panel2);border:1px solid #3c3c3c;border-radius:4px;padding:8px 10px 10px}
+.grpTitle{display:flex;flex-direction:column;gap:2px;padding-bottom:6px;margin-bottom:2px;border-bottom:1px solid #5a5a5a}
+.grpTitle>span:first-child{font-weight:600;color:var(--text);letter-spacing:.02em}
+.grpHint{color:#9a9a9a;font-size:11px}
+#exportView{position:absolute;inset:0;background:var(--stage);overflow:auto;padding:12px;z-index:5}
+.exHead{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:12px;color:var(--dim)}
+#exportImgs{display:flex;flex-wrap:wrap;gap:16px}
+#exportImgs figure{margin:0;display:flex;flex-direction:column;gap:6px;min-width:0}
+#exportImgs img{max-width:min(100%,520px);background:repeating-conic-gradient(#cfcfcf 0 25%,#fff 0 50%) 0 0/16px 16px;border:1px solid #111}
+#exportImgs figcaption{color:var(--dim)}
+.armed{background:#8a2b20!important;border-color:#8a2b20!important}
+@media (max-width:760px){
+  html,body{height:auto}
+  #app{flex-direction:column;height:auto}
+  #panel{width:auto;border-right:0;border-bottom:1px solid #3a3a3a}
+  #main{min-height:70vh}
+  #view{min-height:60vh}
+}
+.seg button.on{background:#e6e6e6;color:#1e1e1e;font-weight:600}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="panel">
+    <h1>Тень (прототип)</h1>
+
+    <div class="lbl" style="margin-top:0">Профиль <span id="pState" class="hint"></span></div>
+    <div class="row">
+      <select id="preset" style="flex:1" title="Выбор профиля сразу применяет его настройки"></select>
+    </div>
+    <div class="row">
+      <input type="text" id="pName" placeholder="Имя нового профиля" style="flex:1;min-width:0">
+      <button id="pSave" title="Сохранить текущие настройки под этим именем">Сохранить</button>
+    </div>
+    <div class="row">
+      <button id="pUpd" title="Записать текущие настройки в выбранный профиль">Обновить</button>
+      <button id="pRen" title="Переименовать выбранный профиль в имя из поля выше">Переименовать</button>
+      <button id="pDel" title="Удалить выбранный профиль">Удалить</button>
+    </div>
+    <div class="hint" id="pMsg"></div>
+
+    <div class="sec">
+      <div class="lbl">Объект</div>
+      <div class="seg" id="modeSeg">
+        <button data-mode="stand" title="Стоит на земле: персонаж, дерево, домик. Тень ложится от основания по земле.">Стоит</button>
+        <button data-mode="lie" title="Лежит или чуть парит: перчатки, кот, иконка. Тень — сдвинутый размытый силуэт.">Лежит</button>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="lbl">Свет</div>
+      <div id="dial">
+        <svg id="dialSvg" width="140" height="140" viewBox="0 0 140 140">
+          <circle cx="70" cy="70" r="62" fill="#3f3f3f" stroke="#cfcfcf" stroke-width="1.2"/>
+          <line x1="64" y1="70" x2="76" y2="70" stroke="#cfcfcf"/>
+          <line x1="70" y1="64" x2="70" y2="76" stroke="#cfcfcf"/>
+          <line id="dLine" x1="70" y1="70" x2="70" y2="70" stroke="#cfcfcf"/>
+          <circle id="dDot" cx="70" cy="70" r="7" fill="#d9d9d9"/>
+        </svg>
+        <div class="dfields">
+          <label>Угол <input type="number" id="fA" min="-180" max="360" step="1">°</label>
+          <label>Высота <input type="number" id="fE" min="3" max="90" step="1">°</label>
+        </div>
+      </div>
+      <div class="hint">Точка — откуда светит солнце. Центр круга — солнце в зените, край — у горизонта. Shift — шаг 15°.</div>
+      <label class="chk" style="margin-top:6px"><input type="checkbox" id="sunMode"> Точка солнца на картинке</label>
+      <div class="hint">Включи и кликни по превью: угол посчитается от основания объекта к точке.</div>
+    </div>
+
+    <div class="sec" id="sliders"></div>
+
+    <div class="sec">
+      <div class="row">
+        <span class="lbl" style="margin:0">Цвет</span>
+        <input type="color" id="color">
+        <span class="hint">на улице лучше тёмно-синий, не чёрный</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="main">
+    <div id="bar">
+      <button id="load">Загрузить PNG…</button>
+      <input type="file" id="file" accept="image/png,image/webp,image/*" hidden>
+      <button id="loadBg">Фон…</button>
+      <input type="file" id="fileBg" accept="image/*" hidden>
+      <select id="bg">
+        <option value="ground">Фон: земля</option>
+        <option value="white">Фон: белый</option>
+        <option value="checker">Фон: шахматка</option>
+        <option value="custom">Фон: своя картинка</option>
+      </select>
+      <select id="frame">
+        <option value="obj">Кадр: по объекту</option>
+        <option value="all">Кадр: всё поле</option>
+      </select>
+      <label class="chk"><input type="checkbox" id="showGround"> Линия земли</label>
+      <button id="cmp" title="Держи, чтобы увидеть без тени">Без тени (держать)</button>
+      <button id="upd" class="primary" title="Пересчитать тень с текущими настройками" hidden>Обновить тень</button>
+      <label class="chk" title="Пересчитывать сразу при каждом изменении" hidden><input type="checkbox" id="live" checked> Живой просмотр</label>
+      <button id="export">Сохранить PNG тени</button>
+      <span id="stat"></span>
+    </div>
+    <div id="view"><canvas id="out"></canvas></div>
+    <div id="exportView" hidden>
+      <div class="exHead">
+        <span>Правый клик по картинке → «Сохранить картинку как…»</span>
+        <button id="exportClose">Закрыть</button>
+      </div>
+      <div id="exportImgs"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ============================================================
+   Shadow prototype — cast shadow engine for a standing object.
+   Model: object = flat billboard standing on a ground line y0.
+   Each object pixel at height h above ground is projected onto
+   the ground along the sun direction. Done by inverse mapping
+   per output pixel, then variable blur (grows with h) by blending
+   blurred distance bands. Plus a contact shadow under the base.
+   ============================================================ */
+
+// m: which mode shows the slider ('stand', 'lie', or both)
+const SLIDERS = [
+  {k:'len',   m:'stand', name:'Длина',                    min:10, max:300, step:1, unit:'%'},
+  {k:'ground',m:'stand', name:'Наклон земли (сплющивание)',min:10, max:100, step:1, unit:'%'},
+  {k:'vol',   m:'stand', name:'Объём (0 = плоская картонка)',min:0, max:100, step:1, unit:'%'},
+  {k:'persp', m:'stand', name:'Перспектива (сужение вдаль)',min:0, max:100, step:1, unit:'%'},
+  {k:'b0',    m:'stand', name:'Размытие у основания',      min:0,  max:60,  step:0.5, unit:'px'},
+  {k:'b1',    m:'stand', name:'Размытие на конце',         min:0,  max:200, step:1, unit:'px'},
+  {k:'fade',  m:'stand', name:'Затухание к концу',         min:0,  max:100, step:1, unit:'%'},
+  {k:'lift',  m:'lie',   name:'Подъём над поверхностью',   min:0,  max:200, step:1, unit:'px'},
+  {k:'spread',m:'lie',   name:'Расширение тени',           min:-40,max:60,  step:1, unit:'px'},
+  {k:'lb',    m:'lie',   name:'Размытие',                  min:0,  max:150, step:1, unit:'px'},
+  {k:'op',    m:'both',  name:'Непрозрачность',            min:0,  max:100, step:1, unit:'%'},
+  {k:'cop',   m:'both',  g:'contact', name:'Плотность',    min:0,  max:100, step:1, unit:'%'},
+  {k:'csize', m:'both',  g:'contact', name:'Размер',       min:1,  max:80,  step:1, unit:'px'},
+  {k:'cdif',  m:'stand', g:'contact', name:'Рассеивание',  min:0,  max:100, step:1, unit:'%'},
+  {k:'cwide', m:'stand', g:'contact', name:'Ширина рассеивания', min:10, max:200, step:1, unit:'%'},
+  {k:'cgam',  m:'stand', g:'contact', name:'Контраст (темнее в закрытых местах)', min:30, max:400, step:5, unit:'%'},
+  {k:'cflat', m:'stand', g:'contact', name:'Сплющивание',  min:10, max:100, step:1, unit:'%'},
+  {k:'cband', m:'stand', g:'contact', name:'Высота зоны (доля низа объекта)', min:3, max:60, step:1, unit:'%'},
+  {k:'ox',    m:'both',  g:'pos', name:'Сдвиг по X (← −, + →)', min:-100,max:100,step:1, unit:'px'},
+  {k:'oy',    m:'both',  g:'pos', name:'Сдвиг по Y (↑ −, + ↓)', min:-100,max:100,step:1, unit:'px'},
+  {k:'rot',   m:'both',  g:'pos', name:'Поворот (− против, + по часовой)', min:-90,max:90,step:1, unit:'°'},
+];
+// slider groups shown as titled blocks; 'main' title depends on the mode
+const GROUPS = [
+  {g:'main',    title:{stand:'Отброшенная тень', lie:'Тень'}, hint:{stand:'Тень от всего объекта по земле', lie:'Сдвинутый размытый силуэт'}},
+  {g:'contact', title:{stand:'Контактная тень', lie:'Контактная тень'}, hint:{stand:'Плотная тень у мест касания и в закрытых местах', lie:'Тёмная кромка у края'}},
+  {g:'pos',     title:{stand:'Положение тени', lie:'Положение тени'}, hint:{stand:'Подгонка под конкретный объект, в профиль не сохраняется', lie:'Подгонка под конкретный объект, в профиль не сохраняется'}},
+];
+
+// Start values (not a profile). Profiles list starts empty.
+const DEFAULTS = {mode:'stand',A:125,E:38,len:100,ground:45,vol:70,persp:25,b0:1,b1:28,fade:55,
+  lift:30,spread:0,lb:35,op:70,cop:60,csize:8,cdif:50,cwide:35,cgam:100,cflat:45,cband:25,gy:0,ox:0,oy:0,rot:0,color:'#1d2433'};
+let P = Object.assign({}, DEFAULTS);
+
+/* ---------- profiles storage ---------- */
+function loadUserPresets(){ try{ return JSON.parse(localStorage.getItem('shadowProtoPresets')||'{}'); }catch(e){ return {}; } }
+function saveUserPresets(o){ try{ localStorage.setItem('shadowProtoPresets', JSON.stringify(o)); }catch(e){} }
+function allPresets(){ return loadUserPresets(); }
+function fillPresetList(sel){
+  const s = document.getElementById('preset'); s.innerHTML='';
+  const names=Object.keys(loadUserPresets()).sort((a,b)=>a.localeCompare(b,'ru'));
+  const ph=document.createElement('option'); ph.value=''; ph.textContent=names.length?'— выбери профиль —':'— профилей нет —'; s.appendChild(ph);
+  for(const n of names){ const o=document.createElement('option'); o.value=o.textContent=n; s.appendChild(o); }
+  s.value = (sel && names.includes(sel)) ? sel : '';
+  updatePresetState();
+}
+const PKEYS=['mode','A','E','len','ground','vol','persp','b0','b1','fade','lift','spread','lb','op','cop','csize','cdif','cwide','cgam','cflat','cband','color'];
+function pick(o){ const r={}; for(const k of PKEYS) r[k]=(o[k]!=null?o[k]:DEFAULTS[k]); r.gy=0; return r; }
+function updatePresetState(){
+  const s=document.getElementById('preset'), p=allPresets()[s.value], st=document.getElementById('pState');
+  if(!p){ st.textContent=''; return; }
+  const same=PKEYS.every(k=> String(pick(p)[k])===String(P[k]));
+  st.textContent = same?'':'· изменён';
+}
+function pMsg(t){ document.getElementById('pMsg').textContent=t; }
+// confirm by a second click within 4 s (browser confirm() does not work when opened by link)
+let armedBtn=null, armedT=0;
+function armed(btn,msg){
+  if(armedBtn===btn && Date.now()-armedT<4000){ btn.classList.remove('armed'); armedBtn=null; return true; }
+  if(armedBtn) armedBtn.classList.remove('armed');
+  armedBtn=btn; armedT=Date.now(); btn.classList.add('armed'); pMsg(msg);
+  setTimeout(()=>{ if(armedBtn===btn && Date.now()-armedT>=3900){ btn.classList.remove('armed'); armedBtn=null; } },4000);
+  return false;
+}
+
+/* ---------- UI build ---------- */
+const slidersEl = document.getElementById('sliders');
+const ctrls = {}, grpEls = {};
+for(const G of GROUPS){
+  const box=document.createElement('section'); box.className='grp';
+  const h=document.createElement('div'); h.className='grpTitle';
+  const t=document.createElement('span'); const hint=document.createElement('span'); hint.className='grpHint';
+  h.append(t,hint); box.appendChild(h); slidersEl.appendChild(box);
+  grpEls[G.g]={box,t,hint,G};
+}
+for(const s of SLIDERS){
+  const slidersEl=grpEls[s.g||'main'].box;
+  const lbl = document.createElement('div'); lbl.className='lbl'; lbl.textContent=s.name;
+  const row = document.createElement('div'); row.className='sl';
+  const r = document.createElement('input'); r.type='range'; r.min=s.min; r.max=s.max; r.step=s.step;
+  const n = document.createElement('input'); n.type='number'; n.min=s.min; n.max=s.max; n.step=s.step;
+  const u = document.createElement('span'); u.className='unit'; u.textContent=s.unit;
+  r.addEventListener('input',()=>{ n.value=r.value; P[s.k]=+r.value; schedule(); });
+  r.addEventListener('change',()=>{ schedule(true); });
+  n.addEventListener('input',()=>{ const v=Math.min(s.max,Math.max(s.min,+n.value||0)); r.value=v; P[s.k]=v; schedule(true); });
+  row.append(r,n,u); slidersEl.append(lbl,row);
+  ctrls[s.k] = {r,n,lbl,row,m:s.m};
+}
+const modeSeg=document.getElementById('modeSeg');
+function showMode(){
+  for(const b of modeSeg.querySelectorAll('button')) b.classList.toggle('on', b.dataset.mode===P.mode);
+  for(const s of SLIDERS){ const c=ctrls[s.k], vis=(c.m==='both'||c.m===P.mode); c.lbl.style.display=c.row.style.display=vis?'':'none'; }
+  for(const k in grpEls){ const e=grpEls[k]; e.t.textContent=e.G.title[P.mode]; e.hint.textContent=e.G.hint[P.mode]; }
+  document.getElementById('showGround').parentElement.style.display = P.mode==='stand'?'':'none';
+}
+modeSeg.addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b) return; P.mode=b.dataset.mode; showMode(); schedule(true); });
+const fA=document.getElementById('fA'), fE=document.getElementById('fE');
+const colorEl=document.getElementById('color');
+function syncUI(){
+  for(const s of SLIDERS){ ctrls[s.k].r.value=P[s.k]; ctrls[s.k].n.value=P[s.k]; }
+  fA.value=Math.round(P.A); fE.value=Math.round(P.E); colorEl.value=P.color; drawDial(); showMode();
+}
+fA.addEventListener('input',()=>{ P.A=+fA.value||0; drawDial(); schedule(true); });
+fE.addEventListener('input',()=>{ P.E=Math.min(90,Math.max(3,+fE.value||3)); drawDial(); schedule(true); });
+colorEl.addEventListener('input',()=>{ P.color=colorEl.value; redraw(); });   // colour needs no recompute
+
+/* dial */
+const R=62, CX=70, CY=70;
+function drawDial(){
+  const a=P.A*Math.PI/180, r=R*(1-P.E/90);
+  const x=CX+r*Math.cos(a), y=CY-r*Math.sin(a);
+  dDot.setAttribute('cx',x); dDot.setAttribute('cy',y);
+  dLine.setAttribute('x2',x); dLine.setAttribute('y2',y);
+}
+const dialSvg=document.getElementById('dialSvg'), dDot=document.getElementById('dDot'), dLine=document.getElementById('dLine');
+let dialDrag=false;
+function dialFrom(ev){
+  const b=dialSvg.getBoundingClientRect();
+  const dx=(ev.clientX-b.left)*140/b.width-CX, dy=(ev.clientY-b.top)*140/b.height-CY;
+  let A=Math.atan2(-dy,dx)*180/Math.PI; if(A<0)A+=360;
+  if(ev.shiftKey) A=Math.round(A/15)*15%360;
+  const d=Math.min(R,Math.hypot(dx,dy));
+  P.A=Math.round(A); P.E=Math.max(3,Math.round(90*(1-d/R)));
+  fA.value=P.A; fE.value=P.E; drawDial(); schedule();
+}
+dialSvg.addEventListener('pointerdown',e=>{dialDrag=true;dialSvg.setPointerCapture(e.pointerId);dialFrom(e);});
+dialSvg.addEventListener('pointermove',e=>{ if(dialDrag) dialFrom(e); });
+dialSvg.addEventListener('pointerup',()=>{ dialDrag=false; schedule(true); });
+
+/* presets */
+const presetSel=document.getElementById('preset'), pName=document.getElementById('pName');
+function applyPreset(name){ const p=allPresets()[name]; if(!p) return; const ox=P.ox||0, oy=P.oy||0, rot=P.rot||0; P=pick(p); P.ox=ox; P.oy=oy; P.rot=rot; syncUI(); schedule(true); updatePresetState(); }
+presetSel.addEventListener('change',()=>{ if(!presetSel.value){ updatePresetState(); return; } applyPreset(presetSel.value); pMsg('Применён профиль «'+presetSel.value+'».'); });
+document.getElementById('pSave').addEventListener('click',()=>{
+  const name=pName.value.trim(); if(!name){ pMsg('Впиши имя профиля.'); pName.focus(); return; }
+  const u=loadUserPresets(); const existed=name in u;
+  if(existed && !armed(document.getElementById('pSave'),'Профиль «'+name+'» уже есть. Нажми «Сохранить» ещё раз, чтобы перезаписать.')) return;
+  u[name]=pick(P); saveUserPresets(u); fillPresetList(name); pName.value='';
+  pMsg((existed?'Перезаписан':'Сохранён')+' профиль «'+name+'».');
+});
+pName.addEventListener('keydown',e=>{ if(e.key==='Enter') document.getElementById('pSave').click(); });
+document.getElementById('pUpd').addEventListener('click',()=>{
+  const n=presetSel.value, u=loadUserPresets();
+  if(!(n in u)){ pMsg('Профиль не выбран.'); return; }
+  u[n]=pick(P); saveUserPresets(u); updatePresetState(); pMsg('Профиль «'+n+'» обновлён.');
+});
+document.getElementById('pRen').addEventListener('click',()=>{
+  const n=presetSel.value, nn=pName.value.trim(), u=loadUserPresets();
+  if(!(n in u)){ pMsg('Профиль не выбран.'); return; }
+  if(!nn){ pMsg('Впиши новое имя в поле выше.'); pName.focus(); return; }
+  if(nn in u){ pMsg('Имя «'+nn+'» уже занято.'); return; }
+  u[nn]=u[n]; delete u[n]; saveUserPresets(u); fillPresetList(nn); pName.value=''; pMsg('Переименован в «'+nn+'».');
+});
+document.getElementById('pDel').addEventListener('click',()=>{
+  const n=presetSel.value, u=loadUserPresets();
+  if(!(n in u)){ pMsg('Профиль не выбран.'); return; }
+  if(!armed(document.getElementById('pDel'),'Нажми «Удалить» ещё раз, чтобы удалить профиль «'+n+'».')) return;
+  delete u[n]; saveUserPresets(u); fillPresetList(); pMsg('Профиль «'+n+'» удалён.');
+});
+
+/* ---------- image & stage ---------- */
+let srcImg=null, bgImg=null, stagePrev=null, stageFull=null;
+const out=document.getElementById('out'), octx=out.getContext('2d');
+
+function makeSample(){
+  const c=document.createElement('canvas'); c.width=420; c.height=620; const g=c.getContext('2d');
+  // trunk
+  const tg=g.createLinearGradient(185,0,235,0); tg.addColorStop(0,'#5a3b22'); tg.addColorStop(1,'#8a5a32');
+  g.fillStyle=tg; g.beginPath(); g.moveTo(180,610); g.lineTo(240,610); g.lineTo(226,300); g.lineTo(194,300); g.closePath(); g.fill();
+  // branches
+  g.strokeStyle='#6d4729'; g.lineWidth=12; g.lineCap='round';
+  g.beginPath(); g.moveTo(210,380); g.lineTo(140,300); g.moveTo(212,360); g.lineTo(290,290); g.stroke();
+  // crown
+  const blobs=[[210,200,120],[120,260,80],[300,250,85],[160,150,80],[270,140,85],[210,90,70]];
+  for(const [x,y,r] of blobs){ const cg=g.createRadialGradient(x-r*0.3,y-r*0.4,r*0.1,x,y,r); cg.addColorStop(0,'#7dc35a'); cg.addColorStop(1,'#2f6b2a'); g.fillStyle=cg; g.beginPath(); g.arc(x,y,r,0,Math.PI*2); g.fill(); }
+  // stone at base
+  g.fillStyle='#8c8c8c'; g.beginPath(); g.ellipse(300,588,40,22,0,0,Math.PI*2); g.fill();
+  const im=new Image(); im.src=c.toDataURL(); return im;
+}
+
+function buildStage(img, maxSide){
+  const w=img.naturalWidth, h=img.naturalHeight;
+  // full-res bbox / base
+  const fc=document.createElement('canvas'); fc.width=w; fc.height=h; const fx=fc.getContext('2d'); fx.drawImage(img,0,0);
+  const fa=fx.getImageData(0,0,w,h).data;
+  let top=h, bot=-1, left=w, right=-1;
+  for(let y=0;y<h;y++) for(let x=0;x<w;x++){ if(fa[(y*w+x)*4+3]>25){ if(y<top)top=y; if(y>bot)bot=y; if(x<left)left=x; if(x>right)right=x; } }
+  if(bot<0){ top=0;bot=h-1;left=0;right=w-1; }
+  // base center: mean x of opaque pixels in bottom 4% of object
+  const band=Math.max(2,Math.round((bot-top)*0.04)); let sx=0,sn=0;
+  for(let y=bot-band;y<=bot;y++) for(let x=left;x<=right;x++){ const a=fa[(y*w+x)*4+3]; if(a>25){ sx+=x*a; sn+=a; } }
+  const baseX = sn? sx/sn : (left+right)/2;
+  const pad=Math.round(1.0*Math.max(w,h));
+  const SW=w+2*pad, SH=h+2*pad;
+  const sc=Math.min(1, maxSide/Math.max(SW,SH));
+  const W=Math.max(1,Math.round(SW*sc)), H=Math.max(1,Math.round(SH*sc));
+  const oc=document.createElement('canvas'); oc.width=W; oc.height=H; const ox=oc.getContext('2d');
+  ox.imageSmoothingQuality='high'; ox.drawImage(img,pad*sc,pad*sc,w*sc,h*sc);
+  const d=ox.getImageData(0,0,W,H).data, A=new Float32Array(W*H);
+  for(let i=0;i<W*H;i++) A[i]=d[i*4+3]/255;
+  return {W,H,sc,pad,A,obj:oc,
+    // stage coords (in working pixels)
+    y0b:(pad+bot+1)*sc, top:(pad+top)*sc, xc:(pad+baseX)*sc, left:(pad+left)*sc, right:(pad+right+1)*sc};
+}
+
+/* ---------- blur ---------- */
+function boxesForGauss(sigma,n){
+  const wIdeal=Math.sqrt((12*sigma*sigma/n)+1); let wl=Math.floor(wIdeal); if(wl%2==0)wl--;
+  const wu=wl+2, mIdeal=(12*sigma*sigma-n*wl*wl-4*n*wl-3*n)/(-4*wl-4), m=Math.round(mIdeal);
+  const s=[]; for(let i=0;i<n;i++) s.push(i<m?wl:wu); return s;
+}
+function boxH(src,dst,W,H,r){
+  const iarr=1/(r+r+1);
+  for(let y=0;y<H;y++){
+    const o=y*W; let acc=0;
+    for(let x=-r-1;x<r;x++){ const xi=Math.min(W-1,Math.max(0,x)); acc+= (x<0||x>=W)?0:src[o+xi]; }
+    for(let x=0;x<W;x++){
+      const xa=x+r, xr=x-r-1;
+      if(xa<W) acc+=src[o+xa]; if(xr>=0) acc-=src[o+xr];
+      dst[o+x]=acc*iarr;
+    }
+  }
+}
+function boxV(src,dst,W,H,r){
+  const iarr=1/(r+r+1);
+  for(let x=0;x<W;x++){
+    let acc=0;
+    for(let y=0;y<r;y++){ if(y<H) acc+=src[y*W+x]; }
+    for(let y=0;y<H;y++){
+      const ya=y+r, yr=y-r-1;
+      if(ya<H) acc+=src[ya*W+x]; if(yr>=0) acc-=src[yr*W+x];
+      dst[y*W+x]=acc*iarr;
+    }
+  }
+}
+function gauss(a,W,H,sigma,tmp){
+  if(sigma<0.35) return a;
+  const bx=boxesForGauss(sigma,3);
+  for(const b of bx){ const r=(b-1)>>1; if(r<1) continue; boxH(a,tmp,W,H,r); boxV(tmp,a,W,H,r); }
+  return a;
+}
+
+function bboxOf(B,W,H){
+  let x0=W,y0=H,x1=-1,y1=-1;
+  for(let y=0;y<H;y++){ const o=y*W; let any=false;
+    for(let x=0;x<W;x++) if(B[o+x]>0){ any=true; if(x<x0)x0=x; if(x>x1)x1=x; }
+    if(any){ if(y<y0)y0=y; y1=y; } }
+  return x1<0?null:[x0,y0,x1,y1];
+}
+
+/* ---------- shadow engine: "lying" object ----------
+   Shadow = the silhouette shifted away from the light by lift/tan(altitude),
+   grown or shrunk by "spread", blurred. Plus a tight contact shadow right at
+   the edges (small shift, small blur) — the dark line seen in game icons. */
+function shiftMask(A,W,H,ox,oy){
+  const D=new Float32Array(W*H);
+  const fx=Math.floor(ox), fy=Math.floor(oy), wx=ox-fx, wy=oy-fy;
+  const s=(x,y)=> (x>=0&&y>=0&&x<W&&y<H)?A[y*W+x]:0;
+  for(let Y=0;Y<H;Y++){
+    const ys=Y-fy-1; // source rows ys (weight wy) and ys+1 (weight 1-wy)
+    for(let X=0;X<W;X++){
+      const xs=X-fx-1;
+      D[Y*W+X]=(s(xs,ys)*wx+s(xs+1,ys)*(1-wx))*wy+(s(xs,ys+1)*wx+s(xs+1,ys+1)*(1-wx))*(1-wy);
+    }
+  }
+  return D;
+}
+function computeLying(st,P){
+  const {W,H,sc,A}=st;
+  const a=P.A*Math.PI/180, sx=-Math.cos(a), sy=Math.sin(a);
+  const E=Math.max(3,P.E)*Math.PI/180;
+  const off=Math.min(400,P.lift/Math.tan(E))*sc;
+  const tmp=new Float32Array(W*H);
+  // main soft shadow
+  let M=shiftMask(A,W,H,sx*off,sy*off);
+  const sp=P.spread*sc;
+  if(Math.abs(sp)>=0.5){
+    gauss(M,W,H,Math.abs(sp)*0.5,tmp);
+    if(sp>0) for(let i=0;i<M.length;i++) M[i]=Math.min(1,M[i]*2);
+    else     for(let i=0;i<M.length;i++) M[i]=Math.max(0,M[i]*2-1);
+  }
+  const blur=(P.lb+P.lift*0.15)*sc;     // higher = softer
+  gaussFast(M,W,H,blur,blur);
+  const S=new Float32Array(W*H), op=P.op/100;
+  for(let i=0;i<S.length;i++) S[i]=Math.min(1,M[i])*op;
+  // contact: almost under the object, small shift toward the shadow side
+  if(P.cop>0){
+    const cs=Math.max(1,P.csize*sc), co=Math.min(cs*0.5, off*0.25+1);
+    const C=shiftMask(A,W,H,sx*co,sy*co);
+    gauss(C,W,H,cs*0.5,tmp);
+    const k=P.cop/100;
+    for(let i=0;i<S.length;i++){ const cv=Math.min(1,C[i]*1.3)*k; S[i]=1-(1-S[i])*(1-cv); }
+  }
+  return S;
+}
+
+/* final nudge of the whole shadow (object-specific, not saved in profiles) */
+function computeShadow(st,P){
+  let S=P.mode==='lie'?computeLying(st,P):computeStanding(st,P);
+  if(P.rot){
+    // pivot: where the object touches the ground (standing) or its centre (lying)
+    const px=P.mode==='lie'?(st.left+st.right)/2:st.xc, py=P.mode==='lie'?(st.top+st.y0b)/2:st.y0b;
+    S=rotateMask(S,st.W,st.H,px,py,P.rot*Math.PI/180);
+  }
+  const ox=(P.ox||0)*st.sc, oy=(P.oy||0)*st.sc;
+  return (ox||oy)?shiftMask(S,st.W,st.H,ox,oy):S;
+}
+// rotate a mask clockwise by angle a (radians) around (px,py), bilinear, only where it lands
+function rotateMask(S,W,H,px,py,a){
+  const D=new Float32Array(W*H), c=Math.cos(a), s=Math.sin(a);
+  const bb=bboxOf(S,W,H); if(!bb) return S;
+  // destination box = rotated corners of the source box
+  let X0=W,Y0=H,X1=0,Y1=0;
+  for(const [x,y] of [[bb[0],bb[1]],[bb[2]+1,bb[1]],[bb[0],bb[3]+1],[bb[2]+1,bb[3]+1]]){
+    const dx=x-px, dy=y-py, X=px+dx*c-dy*s, Y=py+dx*s+dy*c;
+    X0=Math.min(X0,X); X1=Math.max(X1,X); Y0=Math.min(Y0,Y); Y1=Math.max(Y1,Y);
+  }
+  X0=Math.max(0,Math.floor(X0)-1); Y0=Math.max(0,Math.floor(Y0)-1); X1=Math.min(W-1,Math.ceil(X1)+1); Y1=Math.min(H-1,Math.ceil(Y1)+1);
+  for(let Y=Y0;Y<=Y1;Y++){
+    const dy=Y+0.5-py;
+    for(let X=X0;X<=X1;X++){
+      const dx=X+0.5-px;
+      const xs=px+dx*c+dy*s-0.5, ys=py-dx*s+dy*c-0.5;   // inverse rotation
+      if(xs<0||ys<0||xs>=W-1||ys>=H-1) continue;
+      const x1=xs|0, y1=ys|0, wx=xs-x1, wy=ys-y1, o=y1*W+x1;
+      D[Y*W+X]=(S[o]*(1-wx)+S[o+1]*wx)*(1-wy)+(S[o+W]*(1-wx)+S[o+W+1]*wx)*wy;
+    }
+  }
+  return D;
+}
+
+/* ---------- shadow engine: standing object ---------- */
+function computeStanding(st,P){
+  const {W,H,sc,A,y0b,top,xc}=st;
+  const y0=y0b+P.gy*sc;              // ground line (working px)
+  const hmax=Math.max(1,y0-top);
+  const a=P.A*Math.PI/180;
+  const sxd=-Math.cos(a), syd=Math.sin(a);       // shadow direction on screen (y down)
+  const E=Math.max(3,P.E)*Math.PI/180;
+  const k=(P.len/100)/Math.tan(E);                // ground length per unit height
+  const p=P.ground/100;
+  // Each object row at height h is laid on the ground: its pixels keep their x and move by
+  // h*k along the shadow direction (ground plane, depth squashed by p). Contact points (h=0)
+  // stay exactly where the object touches the ground.
+  // Volume: every horizontal run of the row gets depth = run width * vol, so a round part
+  // (crown) casts a wide shadow even with side light, a thin part (trunk) stays thin.
+  if(P.op<=0){                       // cast shadow off: only the contact part
+    const S0=new Float32Array(W*H);
+    if(P.cop>0){ const C=contactAO(st,P,y0,hmax,sxd,syd), co=P.cop/100; for(let j=0;j<S0.length;j++) S0[j]=Math.min(1,C[j])*co; }
+    return S0;
+  }
+  const dx=sxd, dz=syd, v=P.vol/100;
+  const K=8;
+  const pre=[]; for(let i=0;i<K;i++) pre.push(new Float32Array(W*H));   // before perspective
+  const fadeAmt=P.fade/100;
+  const stepX=Math.abs(k*dx), stepY=Math.abs(k*dz*p);
+  const nsub=Math.min(16,Math.max(1,Math.ceil(Math.max(stepX,stepY))));
+  const dh=1/nsub;
+  const L=Math.max(0,Math.floor(st.left)-1), Rr=Math.min(W-1,Math.ceil(st.right)+1);
+  const row=new Float32Array(W);
+  const yTop=Math.max(0,Math.floor(top));
+  for(let h=dh*0.5; h<=hmax; h+=dh){
+    const ys=y0-h-0.5; if(ys<yTop||ys<0) break;
+    const y1=Math.floor(ys), wy=ys-y1, y2=Math.min(H-1,y1+1);
+    const r1=y1*W, r2=y2*W;
+    let any=false;
+    for(let x=L;x<=Rr;x++){ const a1=A[r1+x]*(1-wy)+A[r2+x]*wy; row[x]=a1; if(a1>0.004) any=true; }
+    if(!any) continue;
+    const t=h/hmax, fade=1-fadeAmt*Math.pow(t,0.9); if(fade<=0) continue;
+    const bi=t*(K-1), i0=Math.min(K-2,bi|0), fr=bi-i0, B0=pre[i0], B1=pre[i0+1];
+    const shX=h*k*dx, Yc=y0+h*k*dz*p;
+    const halfStep=0.5*dh*stepY+0.5;
+    // runs
+    let x=L;
+    while(x<=Rr){
+      while(x<=Rr && row[x]<=0.004) x++;
+      if(x>Rr) break;
+      const xa=x; while(x<=Rr && row[x]>0.004) x++; const xb=x-1;
+      // round cross-section: depth is largest in the middle of the run and 0 at its ends
+      // (a disc, not a box), so round objects cast oval shadows
+      const halfMax=(xb-xa+1)*v*p*0.5, cxr=(xa+xb+1)*0.5, rr=(xb-xa+1)*0.5;
+      const Xa=Math.max(0,Math.floor(xa+shX)), Xb=Math.min(W-1,Math.ceil(xb+shX+1));
+      for(let X=Xa;X<=Xb;X++){
+        const sx=X+0.5-shX-0.5, x1=Math.floor(sx); if(x1<xa-1||x1>xb) continue;
+        const wx=sx-x1;
+        const va=(x1>=xa?row[x1]:0)*(1-wx)+(x1+1<=xb?row[x1+1]:0)*wx;
+        if(va<=0) continue;
+        const u=(sx+0.5-cxr)/rr, half=Math.max(halfStep, halfMax*Math.sqrt(Math.max(0,1-u*u)));
+        const Ya=Math.max(0,Math.floor(Yc-half)), Yb=Math.min(H-1,Math.ceil(Yc+half));
+        for(let Y=Ya;Y<=Yb;Y++){
+          const cov=Math.min(1,Math.max(0,Math.min(Y+1,Yc+half)-Math.max(Y,Yc-half)));
+          if(cov<=0) continue;
+          const o=Y*W+X, m=va*cov*fade, m0=m*(1-fr), m1=m*fr;
+          if(m0>B0[o]) B0[o]=m0;
+          if(m1>B1[o]) B1[o]=m1;
+        }
+      }
+    }
+  }
+  // perspective: rows above the ground line shrink toward the base centre, rows below grow
+  const c=(P.persp/100)*0.8/hmax;
+  const bands=[];
+  for(let i=0;i<K;i++){
+    const src=pre[i];
+    if(c<=1e-9){ bands.push(src); continue; }
+    const dst=new Float32Array(W*H);
+    const bb=bboxOf(src,W,H); if(!bb){ bands.push(dst); continue; }
+    for(let Y=0;Y<H;Y++){
+      const u=Y+0.5-y0, q=1+u*c; if(q<0.08) continue;
+      const ysr=y0+u/q-0.5; if(ysr<bb[1]-1||ysr>bb[3]+1||ysr<0||ysr>=H-1) continue;
+      const y1=ysr|0, wy=ysr-y1, r1=y1*W, r2=r1+W, o=Y*W;
+      const Xa=Math.max(0,Math.floor(xc+(bb[0]-1-xc)*q)), Xb=Math.min(W-1,Math.ceil(xc+(bb[2]+2-xc)*q));
+      for(let X=Xa;X<=Xb;X++){
+        const xs=xc+(X+0.5-xc)/q-0.5; if(xs<0||xs>=W-1) continue;
+        const x1=xs|0, wx=xs-x1;
+        const a00=src[r1+x1], a01=src[r1+x1+1], a10=src[r2+x1], a11=src[r2+x1+1];
+        if(a00===0&&a01===0&&a10===0&&a11===0) continue;
+        dst[o+X]=(a00*(1-wx)+a01*wx)*(1-wy)+(a10*(1-wx)+a11*wx)*wy;
+      }
+    }
+    bands.push(dst);
+  }
+  const S=new Float32Array(W*H), tmp=new Float32Array(W*H);
+  for(let i=0;i<K;i++){
+    const t=i/(K-1);
+    const sig=(P.b0+(P.b1-P.b0)*t)*sc;
+    const B=bands[i], bb=bboxOf(B,W,H); if(!bb) continue;
+    // blur only the band's bounding rect + 3 sigma margin
+    const m=Math.ceil(sig*3)+2;
+    const x0=Math.max(0,bb[0]-m), y0r=Math.max(0,bb[1]-m), x1=Math.min(W-1,bb[2]+m), y1=Math.min(H-1,bb[3]+m);
+    const w=x1-x0+1, h=y1-y0r+1, sub=new Float32Array(w*h);
+    for(let y=0;y<h;y++) sub.set(B.subarray((y+y0r)*W+x0,(y+y0r)*W+x0+w),y*w);
+    gaussFast(sub,w,h,sig,sig);
+    for(let y=0;y<h;y++){ const o=(y+y0r)*W+x0, q=y*w; for(let x=0;x<w;x++) S[o+x]+=sub[q+x]; }
+  }
+  const op=P.op/100; for(let j=0;j<S.length;j++) S[j]=Math.min(1,S[j])*op;
+
+  // contact shadow under the LOCAL bottom edge of every part (each foot, the gap between legs):
+  // per column find the lowest solid pixel within the lower 25% of the object; the higher that
+  // edge is above the lowest point, the weaker and softer its contact shadow.
+  if(P.cop>0){
+    const C=contactAO(st,P,y0,hmax,sxd,syd);
+    const co=P.cop/100;
+    for(let j=0;j<S.length;j++){ const cv=Math.min(1,C[j])*co; S[j]=1-(1-S[j])*(1-cv); }
+  }
+  return S;
+}
+
+/* Contact / ambient-occlusion shadow ("как тень рассеивается"):
+   the lower part of the object (band = cband % of its height, weighted toward the ground)
+   is blurred at three scales — tight core, middle, wide tail — with vertical squash (ground
+   seen at an angle) and a slight push away from the light. Sum of scales gives the dense
+   edge under the soles and the long soft fade around. */
+function blurXY(a,W,H,sx,sy,tmp){
+  const bx=sx<0.35?null:boxesForGauss(sx,3), by=sy<0.35?null:boxesForGauss(sy,3);
+  for(let i=0;i<3;i++){
+    if(bx){ const r=(bx[i]-1)>>1; if(r>=1){ boxH(a,tmp,W,H,r); a.set(tmp); } }
+    if(by){ const r=(by[i]-1)>>1; if(r>=1){ boxV(a,tmp,W,H,r); a.set(tmp); } }
+  }
+  return a;
+}
+// Wide blur on a shrunken copy: shrink by f (box average), blur sigma/f, stretch back bilinearly.
+// For soft tails the result is visually the same, but 10-50x cheaper.
+function gaussFast(a,W,H,sx,sy){
+  const sm=Math.max(sx,sy);
+  if(sm<=6){ blurXY(a,W,H,sx,sy,new Float32Array(W*H)); return a; }
+  const f=Math.min(8,Math.max(2,Math.floor(sm/3)));
+  const w=Math.ceil(W/f), h=Math.ceil(H/f);
+  const s=new Float32Array(w*h), n=new Float32Array(w*h);
+  for(let y=0;y<H;y++){ const ro=((y/f)|0)*w, o=y*W; for(let x=0;x<W;x++){ const q=ro+((x/f)|0); s[q]+=a[o+x]; n[q]++; } }
+  for(let i=0;i<s.length;i++) s[i]/=n[i];
+  blurXY(s,w,h,sx/f,sy/f,new Float32Array(w*h));
+  for(let y=0;y<H;y++){
+    let fy=(y+0.5)/f-0.5; if(fy<0)fy=0; if(fy>h-1)fy=h-1;
+    const y1=fy|0, y2=Math.min(h-1,y1+1), wy=fy-y1, o=y*W;
+    for(let x=0;x<W;x++){
+      let fx=(x+0.5)/f-0.5; if(fx<0)fx=0; if(fx>w-1)fx=w-1;
+      const x1=fx|0, x2=Math.min(w-1,x1+1), wx=fx-x1;
+      a[o+x]=(s[y1*w+x1]*(1-wx)+s[y1*w+x2]*wx)*(1-wy)+(s[y2*w+x1]*(1-wx)+s[y2*w+x2]*wx)*wy;
+    }
+  }
+  return a;
+}
+function contactAO(st,P,y0,hmax,sxd,syd){
+  const {W,H,sc,A}=st;
+  const C=new Float32Array(W*H);
+  const band=Math.max(4,hmax*(P.cband/100));
+  const yTop=Math.max(0,Math.floor(y0-band)), yBot=Math.min(H-1,Math.ceil(y0));
+  const L0=Math.max(0,Math.floor(st.left)-1), R0=Math.min(W-1,Math.ceil(st.right)+1);
+  const cs=Math.max(0.5,P.csize*sc), r=P.cdif/100, fl=Math.max(0.1,P.cflat/100);
+  const m=Math.max(1,(P.cwide||35)/10), gam=Math.max(0.3,(P.cgam||100)/100);
+  const sig=[cs, cs*m, cs*m*3], wts=[1, r, r*0.7];
+  const sMax=sig[2]*3+4;
+  const x0=Math.max(0,Math.floor(L0-sMax)), x1=Math.min(W-1,Math.ceil(R0+sMax));
+  const y0r=Math.max(0,Math.floor(yTop-sMax*fl)), y1=Math.min(H-1,Math.ceil(yBot+sMax*fl+sMax*0.6));
+  const w=x1-x0+1, h=y1-y0r+1;
+  const M=new Float32Array(w*h);
+  for(let y=yTop;y<=yBot;y++){
+    const t=Math.min(1,Math.max(0,(y0-(y+0.5))/band)), ramp=1-t;
+    if(ramp<=0) continue;
+    for(let x=L0;x<=R0;x++){ const v=A[y*W+x]; if(v>0) M[(y-y0r)*w+(x-x0)]=v*ramp; }
+  }
+  const tmp=new Float32Array(w*h), acc=new Float32Array(w*h);
+  let wsum=0;
+  for(let i=0;i<3;i++){
+    if(wts[i]<=0) continue;
+    const G=Float32Array.from(M);
+    gaussFast(G,w,h,sig[i],sig[i]*fl);
+    const ox=sxd*sig[i]*0.6, oy=syd*sig[i]*0.6*fl;
+    const Gs=(Math.abs(ox)+Math.abs(oy)>0.3)?shiftMask(G,w,h,ox,oy):G;
+    for(let j=0;j<acc.length;j++) acc[j]+=Gs[j]*wts[i];
+    wsum+=wts[i];
+  }
+  const gain=2/Math.max(1e-6,wsum)*(1+0.5*r);
+  // contrast: >100% darkens enclosed floor (between legs) and lightens open edges
+  for(let y=0;y<h;y++){ const o=(y+y0r)*W+x0, q=y*w; for(let x=0;x<w;x++){ const v=Math.min(1,Math.max(0,acc[q+x]*gain)); C[o+x]=gam===1?v:Math.pow(v,gam); } }
+  return C;
+}
+
+function shadowImage(st,S,color){
+  const r=parseInt(color.slice(1,3),16), g=parseInt(color.slice(3,5),16), bl=parseInt(color.slice(5,7),16);
+  const id=new ImageData(st.W,st.H), d=id.data;
+  for(let i=0;i<S.length;i++){ const o=i*4; d[o]=r; d[o+1]=g; d[o+2]=bl; d[o+3]=Math.round(S[i]*255); }
+  return id;
+}
+
+/* ---------- render ---------- */
+let pending=false, pendingRecompute=false, hideShadow=false, lastS=null, lastSt=null, dirty=false, lastMs=0;
+const stat=document.getElementById('stat');
+const liveEl=document.getElementById('live'), updBtn=document.getElementById('upd');
+function queue(recompute){
+  pendingRecompute = pendingRecompute || recompute;
+  if(pending) return; pending=true;
+  requestAnimationFrame(()=>{ pending=false; const r=pendingRecompute; pendingRecompute=false; render(r); });
+}
+// a parameter changed: recompute now only in live mode, otherwise wait for the button
+function schedule(){ if(liveEl.checked) queue(true); else { dirty=true; showDirty(); } }
+// only the picture changed (background, frame, colour…): reuse the last computed shadow
+function redraw(){ queue(false); }
+function showDirty(){ updBtn.classList.toggle('dirty',dirty); updBtn.textContent=dirty?'Обновить тень •':'Обновить тень'; }
+
+function drawBackground(ctx,st){
+  const W=st.W,H=st.H, mode=document.getElementById('bg').value;
+  if(mode==='white'){ ctx.fillStyle='#f4f4f4'; ctx.fillRect(0,0,W,H); return; }
+  if(mode==='checker'){ const s=Math.max(8,Math.round(16*st.sc*2)); for(let y=0;y<H;y+=s)for(let x=0;x<W;x+=s){ ctx.fillStyle=((x/s+y/s)&1)?'#cfcfcf':'#ffffff'; ctx.fillRect(x,y,s,s);} return; }
+  if(mode==='custom' && bgImg){ const r=Math.max(W/bgImg.naturalWidth,H/bgImg.naturalHeight); const w=bgImg.naturalWidth*r,h=bgImg.naturalHeight*r; ctx.drawImage(bgImg,(W-w)/2,(H-h)/2,w,h); return; }
+  const y0=st.y0b+P.gy*st.sc;
+  const g=ctx.createLinearGradient(0,0,0,H);
+  const hz=Math.max(0.05,Math.min(0.95,(y0-(st.y0b-st.top)*0.35)/H));
+  g.addColorStop(0,'#bcd3e6'); g.addColorStop(hz,'#e6ecef'); g.addColorStop(Math.min(1,hz+0.001),'#d9cdb5'); g.addColorStop(1,'#c8b896');
+  ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+}
+
+function compose(ctx,st,S,withShadow){
+  drawBackground(ctx,st);
+  if(withShadow && S){
+    const c=document.createElement('canvas'); c.width=st.W; c.height=st.H;
+    c.getContext('2d').putImageData(shadowImage(st,S,P.color),0,0);
+    ctx.drawImage(c,0,0);   // Normal blend (agreed format)
+  }
+  ctx.drawImage(st.obj,0,0);
+}
+
+const fullC=document.createElement('canvas');
+let crop={x:0,y:0,w:1,h:1};
+function cropRect(st){
+  if(document.getElementById('frame').value==='all') return {x:0,y:0,w:st.W,h:st.H};
+  const ow=st.right-st.left, oh=st.y0b-st.top, m=0.45*Math.max(ow,oh);
+  const x0=Math.max(0,Math.floor(st.left-m)), y0=Math.max(0,Math.floor(st.top-m*0.6));
+  const x1=Math.min(st.W,Math.ceil(st.right+m)), y1=Math.min(st.H,Math.ceil(st.y0b+m));
+  return {x:x0,y:y0,w:x1-x0,h:y1-y0};
+}
+function fitCanvas(){
+  const v=document.getElementById('view'), aw=v.clientWidth-24, ah=v.clientHeight-24;
+  const k=Math.min(aw/out.width, ah/out.height);
+  out.style.width=Math.floor(out.width*k)+'px'; out.style.height=Math.floor(out.height*k)+'px';
+}
+window.addEventListener('resize',()=>{ if(stagePrev) fitCanvas(); });
+function render(recompute=true){
+  if(!stagePrev) return;
+  const st=stagePrev;
+  fullC.width=st.W; fullC.height=st.H;
+  const octx=fullC.getContext('2d');
+  if(sunMode.checked && sunPt) angleFromSun();
+  updatePresetState();
+  if(recompute || !lastS || lastSt!==st){
+    const t0=performance.now();
+    lastS=computeShadow(st,P); lastSt=st;
+    lastMs=performance.now()-t0; dirty=false; showDirty();
+  }
+  const S=hideShadow?null:lastS;
+  compose(octx,st,S,!hideShadow);
+  const y0=st.y0b+P.gy*st.sc;
+  if(document.getElementById('showGround').checked){
+    octx.save(); octx.setLineDash([6,4]); octx.strokeStyle='#e0402a'; octx.lineWidth=1;
+    octx.beginPath(); octx.moveTo(0,y0+0.5); octx.lineTo(st.W,y0+0.5); octx.stroke();
+    octx.setLineDash([]); octx.beginPath(); octx.arc(st.xc,y0,4,0,Math.PI*2); octx.stroke(); octx.restore();
+  }
+  if(sunMode.checked && sunPt){
+    const x=sunPt.x*st.sc, y=sunPt.y*st.sc;
+    octx.save(); octx.fillStyle='#ffd23a'; octx.strokeStyle='#7a5a00';
+    octx.beginPath(); octx.arc(x,y,9,0,Math.PI*2); octx.fill(); octx.stroke();
+    for(let i=0;i<8;i++){ const a=i*Math.PI/4; octx.beginPath(); octx.moveTo(x+Math.cos(a)*12,y+Math.sin(a)*12); octx.lineTo(x+Math.cos(a)*17,y+Math.sin(a)*17); octx.stroke(); }
+    octx.setLineDash([4,4]); octx.beginPath(); octx.moveTo(x,y); if(P.mode==='lie') octx.lineTo((st.left+st.right)/2,(st.top+y0)/2); else octx.lineTo(st.xc,y0); octx.stroke(); octx.restore();
+  }
+  crop=cropRect(st);
+  out.width=crop.w; out.height=crop.h;
+  const ctx=out.getContext('2d');
+  ctx.drawImage(fullC,crop.x,crop.y,crop.w,crop.h,0,0,crop.w,crop.h);
+  fitCanvas();
+  stat.textContent=`${srcImg.naturalWidth}×${srcImg.naturalHeight}px · превью ${Math.round(st.sc*100)}% · расчёт ${Math.round(lastMs)} мс`;
+}
+
+/* sun point mode: stage coords stored in full-res stage units */
+const sunMode=document.getElementById('sunMode'); let sunPt=null, sunDrag=false;
+function sunFrom(ev){
+  const st=stagePrev, b=out.getBoundingClientRect();
+  const x=crop.x+(ev.clientX-b.left)*crop.w/b.width, y=crop.y+(ev.clientY-b.top)*crop.h/b.height;
+  sunPt={x:x/st.sc,y:y/st.sc};
+  angleFromSun(); schedule();
+}
+// Sun point -> light angle on the GROUND plane (screen y is squashed by "ground" factor),
+// so the shadow continues the line sun -> base on screen.
+function angleFromSun(){
+  const st=stagePrev; if(!st||!sunPt) return;
+  const y0=st.y0b+P.gy*st.sc, p=P.mode==='lie'?1:Math.max(0.05,P.ground/100);
+  const lie=P.mode==='lie';
+  const rx=lie?(st.left+st.right)/2:st.xc, ry=lie?(st.top+y0)/2:y0;   // lying: from the object's centre
+  const dx=sunPt.x*st.sc-rx, dy=(sunPt.y*st.sc-ry)/p;
+  let A=Math.atan2(-dy,dx)*180/Math.PI; if(A<0)A+=360;
+  P.A=Math.round(A*10)/10; fA.value=Math.round(P.A); drawDial();
+}
+out.addEventListener('pointerdown',e=>{ if(!sunMode.checked) return; sunDrag=true; out.setPointerCapture(e.pointerId); sunFrom(e); });
+out.addEventListener('pointermove',e=>{ if(sunDrag) sunFrom(e); });
+out.addEventListener('pointerup',()=>{ sunDrag=false; });
+sunMode.addEventListener('change',()=>{ out.style.cursor=sunMode.checked?'crosshair':'default'; redraw(); });
+
+/* ---------- loading / export ---------- */
+function setImage(img){
+  srcImg=img; stageFull=null; sunPt=null;
+  P.ox=0; P.oy=0; P.rot=0; if(ctrls.ox){ syncUI(); }   // nudge and rotation belong to the object
+  stagePrev=buildStage(img,1400);
+  queue(true);   // a new object is always computed once
+}
+function loadFile(f,cb){ const im=new Image(); im.onload=()=>cb(im); im.src=URL.createObjectURL(f); }
+document.getElementById('load').onclick=()=>document.getElementById('file').click();
+document.getElementById('file').onchange=e=>{ const f=e.target.files[0]; if(f) loadFile(f,setImage); };
+document.getElementById('loadBg').onclick=()=>document.getElementById('fileBg').click();
+document.getElementById('fileBg').onchange=e=>{ const f=e.target.files[0]; if(f) loadFile(f,im=>{ bgImg=im; document.getElementById('bg').value='custom'; redraw(); }); };
+document.getElementById('bg').onchange=()=>redraw();
+document.getElementById('frame').onchange=()=>redraw();
+document.getElementById('showGround').onchange=()=>redraw();
+updBtn.onclick=()=>queue(true);
+liveEl.onchange=()=>{ if(liveEl.checked && dirty) queue(true); };
+const cmp=document.getElementById('cmp');
+cmp.addEventListener('pointerdown',()=>{ hideShadow=true; render(false); });
+['pointerup','pointerleave'].forEach(ev=>cmp.addEventListener(ev,()=>{ if(hideShadow){ hideShadow=false; render(false); } }));
+
+document.getElementById('export').onclick=()=>{
+  if(!srcImg) return;
+  stat.textContent='Считаю в полном размере…';
+  setTimeout(()=>{
+    if(!stageFull) stageFull=buildStage(srcImg,1e9);
+    const st=stageFull, S=computeShadow(st,P);
+    // crop to shadow bounds
+    let x0=st.W,y0=st.H,x1=-1,y1=-1;
+    for(let y=0;y<st.H;y++)for(let x=0;x<st.W;x++) if(S[y*st.W+x]>0.002){ if(x<x0)x0=x; if(x>x1)x1=x; if(y<y0)y0=y; if(y>y1)y1=y; }
+    // crop = object + shadow
+    const ox0=st.pad, oy0=st.pad, ox1=st.pad+srcImg.naturalWidth-1, oy1=st.pad+srcImg.naturalHeight-1;
+    const cx0=Math.min(x0<=x1?x0:ox0,ox0), cy0=Math.min(y0<=y1?y0:oy0,oy0), cx1=Math.max(x1,ox1), cy1=Math.max(y1,oy1);
+    const cw=cx1-cx0+1, ch=cy1-cy0+1;
+    const c=document.createElement('canvas'); c.width=st.W; c.height=st.H; c.getContext('2d').putImageData(shadowImage(st,S,P.color),0,0);
+    const both=document.createElement('canvas'); both.width=st.W; both.height=st.H; compose(both.getContext('2d'),st,S,true);
+    const crop2=src=>{ const k=document.createElement('canvas'); k.width=cw; k.height=ch; k.getContext('2d').drawImage(src,cx0,cy0,cw,ch,0,0,cw,ch); return k; };
+    // Downloads are blocked when the page is opened by link, so show the images to save with right-click.
+    const ov=document.getElementById('exportView'), list=document.getElementById('exportImgs'); list.innerHTML='';
+    const add=(cv,label)=>cv.toBlob(b=>{ const f=document.createElement('figure'); const im=document.createElement('img'); im.src=URL.createObjectURL(b); im.alt=label; const cap=document.createElement('figcaption'); cap.textContent=label+` · ${cw}×${ch}px`; f.append(im,cap); list.appendChild(f); },'image/png');
+    add(crop2(c),'Только тень (прозрачный фон)'); add(crop2(both),'Тень с объектом');
+    ov.hidden=false;
+    stat.textContent=`Готово: ${cw}×${ch}px, объект от левого верхнего угла на ${ox0-cx0}×${oy0-cy0}px`;
+  },20);
+};
+document.getElementById('exportClose').onclick=()=>{ document.getElementById('exportView').hidden=true; };
+
+/* ---------- init ---------- */
+fillPresetList(); syncUI();
+const sample=makeSample(); sample.onload=()=>setImage(sample);
+window.__shadow={get P(){return P;}, render, computeShadow, get stage(){return stagePrev;}};
+</script>
+</body>
+</html>
