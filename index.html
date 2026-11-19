@@ -551,7 +551,9 @@ function groundFromPoints(st,pts){
   const {W,H,A,sc,pad}=st, y0=st.y0b;
   const L=Math.max(0,Math.floor(st.left)-1), R=Math.min(W-1,Math.ceil(st.right)+1);
   const T=Math.max(0,Math.floor(st.top)-1), B=Math.min(H-1,Math.ceil(y0)+1);
-  const inObj=i=>A[i]>0.25;
+  // every visible pixel takes part (soft edges too): an edge pixel without its own ground
+  // fell back to the lowest line and left dotted trails at low sun (Roman's cat, 2026-11-19)
+  const inObj=i=>A[i]>0.004;
   // supports: the object's lowest point (default contact) + the user's points
   let lx=-1, ly=-1;
   for(let y=B;y>=T&&lx<0;y--) for(let x=L;x<=R;x++) if(A[y*W+x]>0.5){ lx=x; ly=y; break; }
@@ -584,13 +586,22 @@ function groundFromPoints(st,pts){
     }
     dist[ti]=d;
   });
-  // ground per pixel: blend of the supports, the nearest one dominates
+  // ground per pixel: the low part of a leg follows its own end; higher up (seat, body) it goes
+  // smoothly to ONE common ground = the middle of the supports (else the seat's shadow bends:
+  // its left and right halves stood on different legs' ground)
+  // Along a leg the ground changes LINEARLY with height (a straight leg on a flat floor casts a
+  // straight shadow): from its end's ground at the end to the common ground at the top of the
+  // legs (yJ = a quarter of the object's height above the middle of the supports).
   const g=new Float32Array(n);
+  const hmaxS=Math.max(1,y0-st.top);
+  const gMean=tips.reduce((s,t)=>s+t.gy,0)/Math.max(1,tips.length), yJ=gMean-0.25*hmaxS;
   for(let y=T;y<=B;y++) for(let x=L;x<=R;x++){
     const i=y*W+x; if(A[i]<=0.004) continue;
     let sw=0, sg=0;
     tips.forEach((t,ti)=>{ let d=dist[ti][i]; if(d>=1e9) d=Math.hypot(x-t.sx,y-t.sy)*3; const w=1/Math.pow(d+2,3); sw+=w; sg+=w*t.gy; });
-    g[i]=sw>0?sg/sw:y0;
+    const near=sw>0?sg/sw:y0;                         // the ground of this pixel's own leg end
+    const span=near-yJ, s=span>0?Math.min(1,Math.max(0,(near-(y+0.5))/span)):1;
+    g[i]=near*(1-s)+gMean*s;
   }
   st._g=g; st._gKey=key;
   return g;
