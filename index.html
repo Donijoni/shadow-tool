@@ -48,7 +48,13 @@ button.primary.dirty{box-shadow:0 0 0 2px #ffb020}
 #sliders{display:flex;flex-direction:column;gap:10px;border-top:0;padding-top:0}
 .grp{background:var(--panel2);border:1px solid #3c3c3c;border-radius:4px;padding:8px 10px 10px}
 .grpTitle{display:flex;flex-direction:column;gap:2px;padding-bottom:6px;margin-bottom:2px;border-bottom:1px solid #5a5a5a}
-.grpTitle>span:first-child{font-weight:600;color:var(--text);letter-spacing:.02em}
+.grpTitle{cursor:pointer;user-select:none}
+.grpTop{display:flex;align-items:center;gap:6px}
+.grpArrow{width:10px;color:var(--dim)}
+.grpName{font-weight:600;color:var(--text);letter-spacing:.02em;flex:1}
+.grpToggle{display:flex;align-items:center;gap:4px;color:var(--dim);cursor:pointer}
+.grp.closed .grpTitle{border-bottom:0;padding-bottom:0;margin-bottom:0}
+.grp.off .grpBody{opacity:.4}
 .grpHint{color:#9a9a9a;font-size:11px}
 .limRow{display:flex;align-items:center;gap:8px;margin:6px 0 0;color:var(--dim)}
 .limRow input{margin-left:auto}
@@ -115,8 +121,6 @@ button.primary.dirty{box-shadow:0 0 0 2px #ffb020}
         </div>
       </div>
       <div class="hint">Точка — откуда светит солнце. Центр круга — солнце в зените, край — у горизонта. Shift — шаг 15°.</div>
-      <label class="chk" style="margin-top:6px"><input type="checkbox" id="sunMode"> Точка солнца на картинке</label>
-      <div class="hint">Включи и кликни по превью: угол посчитается от основания объекта к точке.</div>
     </div>
 
     <div class="sec" id="sliders"></div>
@@ -209,7 +213,7 @@ const GROUPS = [
 
 // Start values (not a profile). Profiles list starts empty.
 const DEFAULTS = {mode:'stand',A:125,E:38,len:100,ground:45,vol:70,persp:25,b0:1,b1:28,fade:55,
-  lift:30,spread:0,lb:35,op:70,cop:60,csize:8,cdif:50,cwide:35,cgam:100,cflat:45,cband:25,gy:0,ox:0,oy:0,rot:0,limW:0,limH:0,color:'#1d2433'};
+  lift:30,spread:0,lb:35,op:70,cop:60,csize:8,cdif:50,cwide:35,cgam:100,cflat:45,cband:25,gy:0,ox:0,oy:0,rot:0,limW:0,limH:0,con:true,color:'#1d2433'};
 let P = Object.assign({}, DEFAULTS);
 
 /* ---------- profiles storage ---------- */
@@ -224,7 +228,7 @@ function fillPresetList(sel){
   s.value = (sel && names.includes(sel)) ? sel : '';
   updatePresetState();
 }
-const PKEYS=['mode','A','E','len','ground','vol','persp','b0','b1','fade','lift','spread','lb','op','cop','csize','cdif','cwide','cgam','cflat','cband','limW','limH','color'];
+const PKEYS=['mode','A','E','len','ground','vol','persp','b0','b1','fade','lift','spread','lb','op','cop','csize','cdif','cwide','cgam','cflat','cband','con','limW','limH','color'];
 function pick(o){ const r={}; for(const k of PKEYS) r[k]=(o[k]!=null?o[k]:DEFAULTS[k]); r.gy=0; return r; }
 function updatePresetState(){
   const s=document.getElementById('preset'), p=allPresets()[s.value], st=document.getElementById('pState');
@@ -246,15 +250,34 @@ function armed(btn,msg){
 /* ---------- UI build ---------- */
 const slidersEl = document.getElementById('sliders');
 const ctrls = {}, grpEls = {};
+// collapsed sections are remembered in this browser
+function loadCollapsed(){ try{ return JSON.parse(localStorage.getItem('shadowProtoCollapsed')||'{}'); }catch(e){ return {}; } }
+function saveCollapsed(o){ try{ localStorage.setItem('shadowProtoCollapsed', JSON.stringify(o)); }catch(e){} }
+const collapsed=loadCollapsed();
 for(const G of GROUPS){
   const box=document.createElement('section'); box.className='grp';
   const h=document.createElement('div'); h.className='grpTitle';
-  const t=document.createElement('span'); const hint=document.createElement('span'); hint.className='grpHint';
-  h.append(t,hint); box.appendChild(h); slidersEl.appendChild(box);
-  grpEls[G.g]={box,t,hint,G};
+  const top=document.createElement('div'); top.className='grpTop';
+  const arrow=document.createElement('span'); arrow.className='grpArrow';
+  const t=document.createElement('span'); t.className='grpName';
+  top.append(arrow,t);
+  const hint=document.createElement('span'); hint.className='grpHint';
+  h.append(top,hint);
+  const body=document.createElement('div'); body.className='grpBody';
+  box.append(h,body); slidersEl.appendChild(box);
+  const setC=c=>{ body.hidden=c; hint.hidden=c; arrow.textContent=c?'▸':'▾'; box.classList.toggle('closed',c); };
+  setC(!!collapsed[G.g]);
+  // click on the title folds / unfolds the section (not on a checkbox inside it)
+  h.addEventListener('click',e=>{ if(e.target.closest('input,label')) return; const c=!body.hidden; setC(c); collapsed[G.g]=c; saveCollapsed(collapsed); });
+  grpEls[G.g]={box,body,top,t,hint,G};
 }
+// contact shadow on / off: a checkbox in its section title
+const conEl=document.createElement('input'); conEl.type='checkbox'; conEl.id='con';
+{ const l=document.createElement('label'); l.className='grpToggle'; l.title='Включить / выключить контактную тень'; l.append(conEl,' вкл');
+  grpEls.contact.top.appendChild(l);
+  conEl.addEventListener('change',()=>{ lastKey='con'; P.con=conEl.checked; grpEls.contact.box.classList.toggle('off',!P.con); schedule(true); }); }
 for(const s of SLIDERS){
-  const slidersEl=grpEls[s.g||'main'].box;
+  const slidersEl=grpEls[s.g||'main'].body;
   const lbl = document.createElement('div'); lbl.className='lbl'; lbl.textContent=s.name;
   const row = document.createElement('div'); row.className='sl';
   const r = document.createElement('input'); r.type='range'; r.min=s.min; r.max=s.max; r.step=s.step;
@@ -269,7 +292,7 @@ for(const s of SLIDERS){
 // max shadow width / height in source pixels; empty = no limit
 const limWEl=document.createElement('input'), limHEl=document.createElement('input');
 const limNow=document.createElement('div'); limNow.className='hint'; limNow.id='limNow';
-{ const box=grpEls.limit.box;
+{ const box=grpEls.limit.body;
   const mk=(el,id,label)=>{ el.type='number'; el.id=id; el.min='1'; el.step='1'; el.placeholder='нет'; el.style.width='80px';
     const row=document.createElement('label'); row.className='limRow'; row.append(label,el,' px'); box.appendChild(row);
     el.addEventListener('input',()=>{ const v=Math.max(0,Math.round(+el.value||0)); lastKey=id; P[id]=v; schedule(true); }); };
@@ -287,6 +310,7 @@ const colorEl=document.getElementById('color');
 function syncUI(){
   for(const s of SLIDERS){ ctrls[s.k].r.value=P[s.k]; ctrls[s.k].n.value=P[s.k]; }
   limWEl.value=P.limW>0?P.limW:''; limHEl.value=P.limH>0?P.limH:'';
+  conEl.checked=P.con!==false; grpEls.contact.box.classList.toggle('off',P.con===false);
   fA.value=Math.round(P.A); fE.value=Math.round(P.E); colorEl.value=P.color; drawDial(); showMode();
 }
 fA.addEventListener('input',()=>{ lastKey='A'; P.A=+fA.value||0; drawDial(); schedule(true); });
@@ -461,7 +485,7 @@ function computeLying(st,P){
   const S=new Float32Array(W*H), op=P.op/100;
   for(let i=0;i<S.length;i++) S[i]=Math.min(1,M[i])*op;
   // contact: almost under the object, small shift toward the shadow side
-  if(P.cop>0){
+  if(P.cop>0&&P.con!==false){
     const cs=Math.max(1,P.csize*sc), co=Math.min(cs*0.5, off*0.25+1);
     const C=shiftMask(A,W,H,sx*co,sy*co);
     gauss(C,W,H,cs*0.5,tmp);
@@ -506,6 +530,39 @@ function rotateMask(S,W,H,px,py,a){
   return D;
 }
 
+/* Local ground per column (stage px, bottom-edge y). Feet / leg tips = lowest points of the
+   bottom contour that lie in the lower 25% of the object. Between tips the ground goes
+   straight from one tip to the next; it never rises above the object's own bottom in that
+   column. One flat bottom (tree, rabbit) gives a flat ground, as before. Cached on the stage. */
+function groundOf(st){
+  if(st._g) return st._g;
+  const {W,H,A}=st, y0=st.y0b, hmax=Math.max(1,y0-st.top), band=hmax*0.25;
+  const L=Math.max(0,Math.floor(st.left)), R=Math.min(W-1,Math.ceil(st.right));
+  const c=new Float32Array(W).fill(-1);
+  for(let x=L;x<=R;x++){ for(let y=Math.min(H-1,Math.ceil(y0));y>=0&&y>=st.top-1;y--){ if(A[y*W+x]>0.5){ c[x]=y+1; break; } } }
+  const win=Math.max(3,Math.round((R-L)*0.03)), tips=[];
+  for(let x=L;x<=R;x++){
+    if(c[x]<0||c[x]<y0-band) continue;
+    let ok=true;
+    for(let j=-win;j<=win&&ok;j++){ const xx=x+j; if(xx<L||xx>R||j===0) continue; if(c[xx]>c[x]) ok=false; }
+    if(ok) tips.push(x);
+  }
+  const g=new Float32Array(W).fill(y0);
+  if(tips.length){
+    let ti=0;
+    for(let x=0;x<W;x++){
+      while(ti<tips.length-1 && tips[ti+1]<=x) ti++;
+      let v;
+      if(x<=tips[0]) v=c[tips[0]];
+      else if(x>=tips[tips.length-1]) v=c[tips[tips.length-1]];
+      else { const a=tips[ti], b=tips[ti+1]; v=c[a]+(c[b]-c[a])*(x-a)/Math.max(1,b-a); }
+      g[x]=Math.max(v, c[x]);          // never above the column's own bottom
+    }
+  }
+  st._g=g; st._tips=tips;
+  return g;
+}
+
 /* ---------- shadow engine: standing object ---------- */
 function computeStanding(st,P){
   const {W,H,sc,A,y0b,top,xc}=st;
@@ -523,7 +580,7 @@ function computeStanding(st,P){
   // (crown) casts a wide shadow even with side light, a thin part (trunk) stays thin.
   if(P.op<=0){                       // cast shadow off: only the contact part
     const S0=new Float32Array(W*H);
-    if(P.cop>0){ const C=contactAO(st,P,y0,hmax,sxd,syd), co=P.cop/100; for(let j=0;j<S0.length;j++) S0[j]=Math.min(1,C[j])*co; }
+    if(P.cop>0&&P.con!==false){ const C=contactAO(st,P,y0,hmax,sxd,syd), co=P.cop/100; for(let j=0;j<S0.length;j++) S0[j]=Math.min(1,C[j])*co; }
     return S0;
   }
   const dx=sxd, dz=syd, v=P.vol/100;
@@ -536,18 +593,18 @@ function computeStanding(st,P){
   const L=Math.max(0,Math.floor(st.left)-1), Rr=Math.min(W-1,Math.ceil(st.right)+1);
   const row=new Float32Array(W);
   const yTop=Math.max(0,Math.floor(top));
-  for(let h=dh*0.5; h<=hmax; h+=dh){
-    const ys=y0-h-0.5; if(ys<yTop||ys<0) break;
+  // local ground per column: every foot / leg tip touches the floor at its own depth
+  // (back legs end higher on screen than front legs), see groundOf()
+  const g=groundOf(st), gShift=y0-st.y0b;
+  const halfStep=0.5*dh*stepY+0.5;
+  for(let hh=dh*0.5; hh<=hmax; hh+=dh){
+    const yy=y0-hh;                    // source row (bottom edge space), scanned from the lowest point up
+    const ys=yy-0.5; if(ys<yTop||ys<0) break;
     const y1=Math.floor(ys), wy=ys-y1, y2=Math.min(H-1,y1+1);
     const r1=y1*W, r2=y2*W;
     let any=false;
     for(let x=L;x<=Rr;x++){ const a1=A[r1+x]*(1-wy)+A[r2+x]*wy; row[x]=a1; if(a1>0.004) any=true; }
     if(!any) continue;
-    const t=h/hmax, fade=1-fadeAmt*Math.pow(t,0.9); if(fade<=0) continue;
-    const bi=t*(K-1), i0=Math.min(K-2,bi|0), fr=bi-i0, B0=pre[i0], B1=pre[i0+1];
-    const shX=h*k*dx, Yc=y0+h*k*dz*p;
-    const halfStep=0.5*dh*stepY+0.5;
-    // runs
     let x=L;
     while(x<=Rr){
       while(x<=Rr && row[x]<=0.004) x++;
@@ -556,20 +613,28 @@ function computeStanding(st,P){
       // round cross-section: depth is largest in the middle of the run and 0 at its ends
       // (a disc, not a box), so round objects cast oval shadows
       const halfMax=(xb-xa+1)*v*p*0.5, cxr=(xa+xb+1)*0.5, rr=(xb-xa+1)*0.5;
-      const Xa=Math.max(0,Math.floor(xa+shX)), Xb=Math.min(W-1,Math.ceil(xb+shX+1));
-      for(let X=Xa;X<=Xb;X++){
-        const sx=X+0.5-shX-0.5, x1=Math.floor(sx); if(x1<xa-1||x1>xb) continue;
-        const wx=sx-x1;
-        const va=(x1>=xa?row[x1]:0)*(1-wx)+(x1+1<=xb?row[x1+1]:0)*wx;
-        if(va<=0) continue;
-        const u=(sx+0.5-cxr)/rr, half=Math.max(halfStep, halfMax*Math.sqrt(Math.max(0,1-u*u)));
+      for(let xs=xa; xs<=xb; xs++){
+        const va=row[xs]; if(va<=0) continue;
+        const gx=g[xs]+gShift, h=gx-yy;            // height above this column's ground
+        if(h<0) continue;
+        const t=Math.min(1,h/hmax), fade=1-fadeAmt*Math.pow(t,0.9); if(fade<=0) continue;
+        const bi=t*(K-1), i0=Math.min(K-2,bi|0), fr=bi-i0, B0=pre[i0], B1=pre[i0+1];
+        const Xf=xs+0.5+h*k*dx-0.5, Yc=gx+h*k*dz*p;   // target (pixel-centre x, row-edge y)
+        const X1=Math.floor(Xf), wx=Xf-X1;
+        const u=(xs+0.5-cxr)/rr, half=Math.max(halfStep, halfMax*Math.sqrt(Math.max(0,1-u*u)));
         const Ya=Math.max(0,Math.floor(Yc-half)), Yb=Math.min(H-1,Math.ceil(Yc+half));
         for(let Y=Ya;Y<=Yb;Y++){
           const cov=Math.min(1,Math.max(0,Math.min(Y+1,Yc+half)-Math.max(Y,Yc-half)));
           if(cov<=0) continue;
-          const o=Y*W+X, m=va*cov*fade, m0=m*(1-fr), m1=m*fr;
-          if(m0>B0[o]) B0[o]=m0;
-          if(m1>B1[o]) B1[o]=m1;
+          const m=va*cov*fade, m0=m*(1-fr), m1=m*fr;
+          // nearest target pixel; between two pixels write both (no thin gaps, max keeps density)
+          const Xa2=wx<0.2?X1:(wx>0.8?X1+1:X1), Xb2=wx<0.2?X1:(wx>0.8?X1+1:X1+1);
+          for(let X=Xa2;X<=Xb2;X++){
+            if(X<0||X>=W) continue;
+            const o=Y*W+X;
+            if(m0>B0[o]) B0[o]=m0;
+            if(m1>B1[o]) B1[o]=m1;
+          }
         }
       }
     }
@@ -615,7 +680,7 @@ function computeStanding(st,P){
   // contact shadow under the LOCAL bottom edge of every part (each foot, the gap between legs):
   // per column find the lowest solid pixel within the lower 25% of the object; the higher that
   // edge is above the lowest point, the weaker and softer its contact shadow.
-  if(P.cop>0){
+  if(P.cop>0&&P.con!==false){
     const C=contactAO(st,P,y0,hmax,sxd,syd);
     const co=P.cop/100;
     for(let j=0;j<S.length;j++){ const cv=Math.min(1,C[j])*co; S[j]=1-(1-S[j])*(1-cv); }
@@ -662,8 +727,11 @@ function contactAO(st,P,y0,hmax,sxd,syd){
   const {W,H,sc,A}=st;
   const C=new Float32Array(W*H);
   const band=Math.max(4,hmax*(P.cband/100));
-  const yTop=Math.max(0,Math.floor(y0-band)), yBot=Math.min(H-1,Math.ceil(y0));
   const L0=Math.max(0,Math.floor(st.left)-1), R0=Math.min(W-1,Math.ceil(st.right)+1);
+  // local ground per column (each leg / foot), shifted like the ground line
+  const gr=groundOf(st), gShift=y0-st.y0b;
+  let gMin=y0; for(let x=L0;x<=R0;x++) if(gr[x]+gShift<gMin) gMin=gr[x]+gShift;
+  const yTop=Math.max(0,Math.floor(gMin-band)), yBot=Math.min(H-1,Math.ceil(y0));
   const cs=Math.max(0.5,P.csize*sc), r=P.cdif/100, fl=Math.max(0.1,P.cflat/100);
   const m=Math.max(1,(P.cwide||35)/10), gam=Math.max(0.3,(P.cgam||100)/100);
   const sig=[cs, cs*m, cs*m*3], wts=[1, r, r*0.7];
@@ -673,9 +741,11 @@ function contactAO(st,P,y0,hmax,sxd,syd){
   const w=x1-x0+1, h=y1-y0r+1;
   const M=new Float32Array(w*h);
   for(let y=yTop;y<=yBot;y++){
-    const t=Math.min(1,Math.max(0,(y0-(y+0.5))/band)), ramp=1-t;
-    if(ramp<=0) continue;
-    for(let x=L0;x<=R0;x++){ const v=A[y*W+x]; if(v>0) M[(y-y0r)*w+(x-x0)]=v*ramp; }
+    for(let x=L0;x<=R0;x++){
+      const v=A[y*W+x]; if(v<=0) continue;
+      const d=gr[x]+gShift-(y+0.5); if(d<0) continue;      // height above this column's ground
+      const ramp=1-Math.min(1,d/band); if(ramp>0) M[(y-y0r)*w+(x-x0)]=v*ramp;
+    }
   }
   const tmp=new Float32Array(w*h), acc=new Float32Array(w*h);
   let wsum=0;
@@ -776,7 +846,6 @@ function render(recompute=true, draft=false){
   const st = recompute ? (draft?stageDraft:stagePrev) : (lastSt||stagePrev);
   fullC.width=st.W; fullC.height=st.H;
   const octx=fullC.getContext('2d');
-  if(sunMode.checked && sunPt) angleFromSun();
   if(recompute || !lastS){
     const t0=performance.now();
     let S=computeShadow(st,P), box=shadowBox(S,st.W,st.H);
@@ -806,13 +875,6 @@ function render(recompute=true, draft=false){
     octx.strokeRect(b[0]+0.5,b[1]+0.5,b[2]-b[0]-1,b[3]-b[1]-1); octx.restore();
   }
   showSizeNow(st);
-  if(sunMode.checked && sunPt){
-    const x=sunPt.x*st.sc, y=sunPt.y*st.sc;
-    octx.save(); octx.fillStyle='#ffd23a'; octx.strokeStyle='#7a5a00';
-    octx.beginPath(); octx.arc(x,y,9,0,Math.PI*2); octx.fill(); octx.stroke();
-    for(let i=0;i<8;i++){ const a=i*Math.PI/4; octx.beginPath(); octx.moveTo(x+Math.cos(a)*12,y+Math.sin(a)*12); octx.lineTo(x+Math.cos(a)*17,y+Math.sin(a)*17); octx.stroke(); }
-    octx.setLineDash([4,4]); octx.beginPath(); octx.moveTo(x,y); if(P.mode==='lie') octx.lineTo((st.left+st.right)/2,(st.top+y0)/2); else octx.lineTo(st.xc,y0); octx.stroke(); octx.restore();
-  }
   crop=cropRect(st);
   out.width=crop.w; out.height=crop.h;
   const ctx=out.getContext('2d');
@@ -821,33 +883,9 @@ function render(recompute=true, draft=false){
   stat.textContent=`${srcImg.naturalWidth}×${srcImg.naturalHeight}px · превью ${Math.round(st.sc*100)}%${st===stageDraft?' (черновик)':''} · расчёт ${Math.round(lastMs)} мс`;
 }
 
-/* sun point mode: stage coords stored in full-res stage units */
-const sunMode=document.getElementById('sunMode'); let sunPt=null, sunDrag=false;
-function sunFrom(ev){
-  const st=lastSt||stagePrev, b=out.getBoundingClientRect();   // crop is in the shown stage's pixels
-  const x=crop.x+(ev.clientX-b.left)*crop.w/b.width, y=crop.y+(ev.clientY-b.top)*crop.h/b.height;
-  sunPt={x:x/st.sc,y:y/st.sc};
-  lastKey='A'; angleFromSun(); schedule();
-}
-// Sun point -> light angle on the GROUND plane (screen y is squashed by "ground" factor),
-// so the shadow continues the line sun -> base on screen.
-function angleFromSun(){
-  const st=stagePrev; if(!st||!sunPt) return;
-  const y0=st.y0b+P.gy*st.sc, p=P.mode==='lie'?1:Math.max(0.05,P.ground/100);
-  const lie=P.mode==='lie';
-  const rx=lie?(st.left+st.right)/2:st.xc, ry=lie?(st.top+y0)/2:y0;   // lying: from the object's centre
-  const dx=sunPt.x*st.sc-rx, dy=(sunPt.y*st.sc-ry)/p;
-  let A=Math.atan2(-dy,dx)*180/Math.PI; if(A<0)A+=360;
-  P.A=Math.round(A*10)/10; fA.value=Math.round(P.A); drawDial();
-}
-out.addEventListener('pointerdown',e=>{ if(!sunMode.checked) return; sunDrag=true; out.setPointerCapture(e.pointerId); sunFrom(e); });
-out.addEventListener('pointermove',e=>{ if(sunDrag) sunFrom(e); });
-out.addEventListener('pointerup',()=>{ if(sunDrag) schedule(true); sunDrag=false; });
-sunMode.addEventListener('change',()=>{ out.style.cursor=sunMode.checked?'crosshair':'default'; redraw(); });
-
 /* ---------- loading / export ---------- */
 function setImage(img){
-  srcImg=img; stageFull=null; sunPt=null;
+  srcImg=img; stageFull=null;
   P.ox=0; P.oy=0; P.rot=0; if(ctrls.ox){ syncUI(); }   // nudge and rotation belong to the object
   stagePrev=buildStage(img,1400); stageDraft=null; lastGood=null; lastS=null; lastSt=null;
   queue(true);   // a new object is always computed once
