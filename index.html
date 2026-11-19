@@ -200,6 +200,8 @@ const SLIDERS = [
   {k:'cgam',  m:'stand', g:'contact', name:'Контраст (темнее в закрытых местах)', min:30, max:400, step:5, unit:'%'},
   {k:'cflat', m:'stand', g:'contact', name:'Сплющивание',  min:10, max:100, step:1, unit:'%'},
   {k:'cband', m:'stand', g:'contact', name:'Высота зоны (доля низа объекта)', min:3, max:60, step:1, unit:'%'},
+  {k:'gy',    m:'stand', g:'gline', name:'Высота линии (↑ −, + ↓)', min:-300,max:100,step:1, unit:'px'},
+  {k:'gtilt', m:'stand', g:'gline', name:'Наклон линии (− влево вверх, + вправо вверх)', min:-30,max:30,step:1, unit:'°'},
   {k:'ox',    m:'both',  g:'pos', name:'Сдвиг по X (← −, + →)', min:-100,max:100,step:1, unit:'px'},
   {k:'oy',    m:'both',  g:'pos', name:'Сдвиг по Y (↑ −, + ↓)', min:-100,max:100,step:1, unit:'px'},
   {k:'rot',   m:'both',  g:'pos', name:'Поворот (− против, + по часовой)', min:-90,max:90,step:1, unit:'°'},
@@ -208,14 +210,14 @@ const SLIDERS = [
 const GROUPS = [
   {g:'main',    title:{stand:'Отброшенная тень', lie:'Тень'}, hint:{stand:'Тень от всего объекта по земле', lie:'Сдвинутый размытый силуэт'}},
   {g:'contact', title:{stand:'Контактная тень', lie:'Контактная тень'}, hint:{stand:'Плотная тень у мест касания и в закрытых местах', lie:'Тёмная кромка у края'}},
-  {g:'pts',     title:{stand:'Точки опоры', lie:'Точки опоры'}, hint:{stand:'Обычно не нужны. Если тень у ножки оторвалась — кликни по превью на кончики ножек (лучше на все). Клик по точке убирает её.', lie:'Работают только в режиме «Стоит».'}},
+  {g:'gline',   title:{stand:'Линия земли', lie:'Линия земли'}, hint:{stand:'От неё строится тень. По умолчанию — через самую нижнюю точку объекта. Если ножки стоят на разной глубине, подними линию между передними и задними. Подгонка под объект, в профиль не сохраняется.', lie:'Работает только в режиме «Стоит».'}},
   {g:'pos',     title:{stand:'Положение тени', lie:'Положение тени'}, hint:{stand:'Подгонка под конкретный объект, в профиль не сохраняется', lie:'Подгонка под конкретный объект, в профиль не сохраняется'}},
   {g:'limit',   title:{stand:'Ограничение размера тени', lie:'Ограничение размера тени'}, hint:{stand:'Пустое поле — без ограничения', lie:'Пустое поле — без ограничения'}},
 ];
 
 // Start values (not a profile). Profiles list starts empty.
 const DEFAULTS = {mode:'stand',A:125,E:38,len:100,ground:45,vol:70,persp:25,b0:1,b1:28,fade:55,
-  lift:30,spread:0,lb:35,op:70,cop:60,csize:8,cdif:50,cwide:35,cgam:100,cflat:45,cband:25,gy:0,ox:0,oy:0,rot:0,limW:0,limH:0,con:true,color:'#1d2433'};
+  lift:30,spread:0,lb:35,op:70,cop:60,csize:8,cdif:50,cwide:35,cgam:100,cflat:45,cband:25,gy:0,gtilt:0,ox:0,oy:0,rot:0,limW:0,limH:0,con:true,color:'#1d2433'};
 let P = Object.assign({}, DEFAULTS);
 
 /* ---------- profiles storage ---------- */
@@ -292,11 +294,6 @@ for(const s of SLIDERS){
   ctrls[s.k] = {r,n,lbl,row,m:s.m};
 }
 // support points: count + "remove all"
-const ptsInfo=document.createElement('div'); ptsInfo.className='hint';
-const ptsClear=document.createElement('button'); ptsClear.textContent='Убрать все точки'; ptsClear.style.marginTop='6px';
-grpEls.pts.body.append(ptsInfo,ptsClear);
-function showPts(){ const n=(P.pts||[]).length; ptsInfo.textContent=n?`Точек: ${n}`:'Точек нет — одна линия земли по самой нижней точке.'; ptsClear.hidden=!n; }
-ptsClear.addEventListener('click',()=>{ P.pts=[]; lastKey='pts'; showPts(); schedule(true); });
 // max shadow width / height in source pixels; empty = no limit
 const limWEl=document.createElement('input'), limHEl=document.createElement('input');
 const limNow=document.createElement('div'); limNow.className='hint'; limNow.id='limNow';
@@ -319,7 +316,6 @@ function syncUI(){
   for(const s of SLIDERS){ ctrls[s.k].r.value=P[s.k]; ctrls[s.k].n.value=P[s.k]; }
   limWEl.value=P.limW>0?P.limW:''; limHEl.value=P.limH>0?P.limH:'';
   conEl.checked=P.con!==false; grpEls.contact.box.classList.toggle('off',P.con===false);
-  showPts();
   fA.value=Math.round(P.A); fE.value=Math.round(P.E); colorEl.value=P.color; drawDial(); showMode();
 }
 fA.addEventListener('input',()=>{ lastKey='A'; P.A=+fA.value||0; drawDial(); schedule(true); });
@@ -351,7 +347,7 @@ dialSvg.addEventListener('pointerup',()=>{ dialDrag=false; schedule(true); });
 
 /* presets */
 const presetSel=document.getElementById('preset'), pName=document.getElementById('pName');
-function applyPreset(name){ const p=allPresets()[name]; if(!p) return; const ox=P.ox||0, oy=P.oy||0, rot=P.rot||0, pts=P.pts||[]; P=pick(p); P.ox=ox; P.oy=oy; P.rot=rot; P.pts=pts; syncUI(); schedule(true); updatePresetState(); }
+function applyPreset(name){ const p=allPresets()[name]; if(!p) return; const ox=P.ox||0, oy=P.oy||0, rot=P.rot||0, gy=P.gy||0, gt=P.gtilt||0; P=pick(p); P.ox=ox; P.oy=oy; P.rot=rot; P.gy=gy; P.gtilt=gt; syncUI(); schedule(true); updatePresetState(); }
 presetSel.addEventListener('change',()=>{ if(!presetSel.value){ updatePresetState(); return; } applyPreset(presetSel.value); pMsg('Применён профиль «'+presetSel.value+'».'); });
 document.getElementById('pSave').addEventListener('click',()=>{
   const name=pName.value.trim(); if(!name){ pMsg('Впиши имя профиля.'); pName.focus(); return; }
@@ -539,72 +535,13 @@ function rotateMask(S,W,H,px,py,a){
   return D;
 }
 
-/* Ground from the user's support points (Roman 2026-11-19, option 3): by default there are no
-   points and the engine keeps ONE ground line (the old code, untouched). With points: the ground
-   per column (stage px, bottom-edge y) goes through the object's lowest point and every support
-   point (a leg tip that stands further back = higher on screen), straight between them by x;
-   it never rises above the object's own bottom in that column.
-   pts: [{x,y}] in source image px. Cached on the stage per set of points. */
-function groundFromPoints(st,pts){
-  // returns a per-PIXEL ground map (stage px, bottom-edge y); 0 = not the object
-  const key=JSON.stringify(pts);
-  if(st._gKey===key) return st._g;
-  const {W,H,A,sc,pad}=st, y0=st.y0b;
-  const L=Math.max(0,Math.floor(st.left)-1), R=Math.min(W-1,Math.ceil(st.right)+1);
-  const T=Math.max(0,Math.floor(st.top)-1), B=Math.min(H-1,Math.ceil(y0)+1);
-  // every visible pixel takes part (soft edges too): an edge pixel without its own ground
-  // fell back to the lowest line and left dotted trails at low sun (Roman's cat, 2026-11-19)
-  const inObj=i=>A[i]>0.004;
-  // supports: the object's lowest point (default contact) + the user's points
-  let lx=-1, ly=-1;
-  for(let y=B;y>=T&&lx<0;y--) for(let x=L;x<=R;x++) if(A[y*W+x]>0.5){ lx=x; ly=y; break; }
-  const tips=[];
-  if(lx>=0) tips.push({sx:lx, sy:ly, gy:ly+1});
-  for(const p of pts){
-    const px=(p.x+pad)*sc, py=(p.y+pad)*sc, rad=Math.max(3,20*sc);
-    // the object pixel nearest to the click (the leg end)
-    let best=-1, bd=1e9;
-    for(let y=Math.max(T,Math.floor(py-rad));y<=Math.min(B,Math.ceil(py+rad));y++)
-      for(let x=Math.max(L,Math.floor(px-rad));x<=Math.min(R,Math.ceil(px+rad));x++){
-        if(!inObj(y*W+x)) continue; const d=(x-px)*(x-px)+(y-py)*(y-py); if(d<bd){ bd=d; best=y*W+x; } }
-    if(best<0) continue;
-    const sx=best%W, sy=(best/W)|0;
-    // the ground there = the bottom of the leg under the click (if close), else the click
-    let by=sy; while(by+1<=B && inObj((by+1)*W+sx)) by++;
-    tips.push({sx, sy, gy: Math.abs(by+1-py)<=rad ? by+1 : py});
-  }
-  // distance from every support, measured inside the object (a leg belongs to its own end)
-  const n=W*H, dist=tips.map(()=>null), q=new Int32Array(n);
-  tips.forEach((t,ti)=>{
-    const d=new Float32Array(n).fill(1e9); let qh=0, qt=0;
-    const s=t.sy*W+t.sx; d[s]=0; q[qt++]=s;
-    while(qh<qt){
-      const i=q[qh++], x=i%W, y=(i/W)|0, nd=d[i]+1;
-      if(x>L&&inObj(i-1)&&d[i-1]>nd){ d[i-1]=nd; q[qt++]=i-1; }
-      if(x<R&&inObj(i+1)&&d[i+1]>nd){ d[i+1]=nd; q[qt++]=i+1; }
-      if(y>T&&inObj(i-W)&&d[i-W]>nd){ d[i-W]=nd; q[qt++]=i-W; }
-      if(y<B&&inObj(i+W)&&d[i+W]>nd){ d[i+W]=nd; q[qt++]=i+W; }
-    }
-    dist[ti]=d;
-  });
-  // ground per pixel: the low part of a leg follows its own end; higher up (seat, body) it goes
-  // smoothly to ONE common ground = the middle of the supports (else the seat's shadow bends:
-  // its left and right halves stood on different legs' ground)
-  // Along a leg the ground changes LINEARLY with height (a straight leg on a flat floor casts a
-  // straight shadow): from its end's ground at the end to the common ground at the top of the
-  // legs (yJ = a quarter of the object's height above the middle of the supports).
-  const g=new Float32Array(n);
-  const hmaxS=Math.max(1,y0-st.top);
-  const gMean=tips.reduce((s,t)=>s+t.gy,0)/Math.max(1,tips.length), yJ=gMean-0.25*hmaxS;
-  for(let y=T;y<=B;y++) for(let x=L;x<=R;x++){
-    const i=y*W+x; if(A[i]<=0.004) continue;
-    let sw=0, sg=0;
-    tips.forEach((t,ti)=>{ let d=dist[ti][i]; if(d>=1e9) d=Math.hypot(x-t.sx,y-t.sy)*3; const w=1/Math.pow(d+2,3); sw+=w; sg+=w*t.gy; });
-    const near=sw>0?sg/sw:y0;                         // the ground of this pixel's own leg end
-    const span=near-yJ, s=span>0?Math.min(1,Math.max(0,(near-(y+0.5))/span)):1;
-    g[i]=near*(1-s)+gMean*s;
-  }
-  st._g=g; st._gKey=key;
+/* Ground line (Roman 2026-11-19): one straight floor line, from which the shadow is cast.
+   Default = horizontal through the object's lowest point (old code path, gy shifts it).
+   Tilted (gtilt <> 0): ground per column g(x) = y0 + tan(tilt) * (xc - x) in stage px,
+   + tilt = the right end goes up. One straight line = a flat floor, so the shadow never bends. */
+function groundLine(st,P,y0){
+  const g=new Float32Array(st.W), t=Math.tan((P.gtilt||0)*Math.PI/180);
+  for(let x=0;x<st.W;x++) g[x]=y0+t*(st.xc-(x+0.5));
   return g;
 }
 
@@ -638,10 +575,10 @@ function computeStanding(st,P){
   const L=Math.max(0,Math.floor(st.left)-1), Rr=Math.min(W-1,Math.ceil(st.right)+1);
   const row=new Float32Array(W);
   const yTop=Math.max(0,Math.floor(top));
-  // support points set by the user: per-column ground (else: the old one-line code below)
-  const gp=(P.pts&&P.pts.length)?groundFromPoints(st,P.pts):null;
+  // tilted ground line: per-column ground (not tilted: the old one-line code below, untouched)
+  const gp=P.gtilt?groundLine(st,P,y0):null;
   if(gp){
-    const gShift=y0-st.y0b, halfStepP=0.5*dh*stepY+0.5;
+    const halfStepP=0.5*dh*stepY+0.5;
     for(let hh=dh*0.5; hh<=hmax; hh+=dh){
       const yy=y0-hh, ys=yy-0.5; if(ys<yTop||ys<0) break;
       const y1=Math.floor(ys), wy=ys-y1, y2=Math.min(H-1,y1+1), r1=y1*W, r2=y2*W;
@@ -656,9 +593,8 @@ function computeStanding(st,P){
         const halfMax=(xb-xa+1)*v*p*0.5, cxr=(xa+xb+1)*0.5, rr=(xb-xa+1)*0.5;
         for(let xs=xa; xs<=xb; xs++){
           const va=row[xs]; if(va<=0) continue;
-          const gi=gp[Math.min(H-1,Math.round(ys))*W+xs]||gp[y1*W+xs]||gp[y2*W+xs]||st.y0b;
-          let gx=gi+gShift, h=gx-yy;                 // height above this pixel's own ground
-          if(h<0){ h=0; gx=yy; }                     // below its support's level: lies on the ground
+          let gx=gp[xs], h=gx-yy;                    // height above the line in this column
+          if(h<0){ h=0; gx=yy; }                     // below the line: lies on the ground
           const t=Math.min(1,h/hmax), fade=1-fadeAmt*Math.pow(t,0.9); if(fade<=0) continue;
           const bi=t*(K-1), i0=Math.min(K-2,bi|0), fr=bi-i0, B0=pre[i0], B1=pre[i0+1];
           const Xf=xs+h*k*dx, Yc=gx+h*k*dz*p, X1=Math.floor(Xf), wx=Xf-X1;
@@ -801,9 +737,9 @@ function contactAO(st,P,y0,hmax,sxd,syd){
   const C=new Float32Array(W*H);
   const band=Math.max(4,hmax*(P.cband/100));
   const L0=Math.max(0,Math.floor(st.left)-1), R0=Math.min(W-1,Math.ceil(st.right)+1);
-  // support points: contact under every marked leg (else the old one-line band)
-  const gp=(P.pts&&P.pts.length)?groundFromPoints(st,P.pts):null, gShift=y0-st.y0b;
-  let gMin=y0; if(gp) for(let i=0;i<gp.length;i++) if(gp[i]>0&&gp[i]+gShift<gMin) gMin=gp[i]+gShift;
+  // tilted ground line: the contact band follows it (not tilted: the old band below)
+  const gp=P.gtilt?groundLine(st,P,y0):null;
+  let gMin=y0; if(gp) for(let x=L0;x<=R0;x++) if(gp[x]<gMin) gMin=gp[x];
   const yTop=Math.max(0,Math.floor(gMin-band)), yBot=Math.min(H-1,Math.ceil(y0));
   const cs=Math.max(0.5,P.csize*sc), r=P.cdif/100, fl=Math.max(0.1,P.cflat/100);
   const m=Math.max(1,(P.cwide||35)/10), gam=Math.max(0.3,(P.cgam||100)/100);
@@ -816,8 +752,7 @@ function contactAO(st,P,y0,hmax,sxd,syd){
   if(gp){
     for(let y=yTop;y<=yBot;y++) for(let x=L0;x<=R0;x++){
       const v=A[y*W+x]; if(v<=0) continue;
-      const gi=gp[y*W+x]; if(!gi) continue;
-      const d=gi+gShift-(y+0.5); if(d<0) continue;
+      const d=gp[x]-(y+0.5); if(d<0) continue;
       const ramp=1-Math.min(1,d/band); if(ramp>0) M[(y-y0r)*w+(x-x0)]=v*ramp;
     }
   } else
@@ -942,10 +877,12 @@ function render(recompute=true, draft=false){
   const S=hideShadow?null:lastS;
   compose(octx,st,S,!hideShadow);
   const y0=st.y0b+P.gy*st.sc;
-  if(document.getElementById('showGround').checked){
-    octx.save(); octx.setLineDash([6,4]); octx.strokeStyle='#e0402a'; octx.lineWidth=1;
-    octx.beginPath(); octx.moveTo(0,y0+0.5); octx.lineTo(st.W,y0+0.5); octx.stroke();
-    octx.setLineDash([]); octx.beginPath(); octx.arc(st.xc,y0,4,0,Math.PI*2); octx.stroke(); octx.restore();
+  // the ground line: shown when the checkbox is on or the line was moved / tilted
+  if(P.mode==='stand' && (document.getElementById('showGround').checked || P.gy || P.gtilt)){
+    const t=Math.tan((P.gtilt||0)*Math.PI/180), yl=x=>y0+t*(st.xc-x);
+    octx.save(); octx.setLineDash([8,5]); octx.lineWidth=Math.max(1,2*st.sc/0.46);
+    octx.strokeStyle='#e0402a'; octx.beginPath(); octx.moveTo(0,yl(0)); octx.lineTo(st.W,yl(st.W)); octx.stroke();
+    octx.setLineDash([]); octx.beginPath(); octx.arc(st.xc,y0,Math.max(3,5*st.sc/0.46),0,Math.PI*2); octx.stroke(); octx.restore();
   }
   if(limitOn() && lastBox && !hideShadow){
     // outline of the current shadow box, so its size is visible against the limit
@@ -954,18 +891,6 @@ function render(recompute=true, draft=false){
     octx.strokeRect(b[0]+0.5,b[1]+0.5,b[2]-b[0]-1,b[3]-b[1]-1); octx.restore();
   }
   showSizeNow(st);
-  // support points: yellow rings on the leg tips
-  if(P.pts&&P.pts.length&&P.mode==='stand'){
-    const r=Math.max(4,6*st.sc/0.46);
-    octx.save(); octx.lineWidth=Math.max(1.5,2*st.sc/0.46);
-    for(const p of P.pts){
-      const x=(p.x+st.pad)*st.sc, y=(p.y+st.pad)*st.sc;
-      octx.strokeStyle='#000'; octx.beginPath(); octx.arc(x,y,r+1,0,Math.PI*2); octx.stroke();
-      octx.strokeStyle='#ffd23a'; octx.beginPath(); octx.arc(x,y,r,0,Math.PI*2); octx.stroke();
-      octx.fillStyle='#ffd23a'; octx.beginPath(); octx.arc(x,y,1.5,0,Math.PI*2); octx.fill();
-    }
-    octx.restore();
-  }
   crop=cropRect(st);
   out.width=crop.w; out.height=crop.h;
   const ctx=out.getContext('2d');
@@ -974,23 +899,10 @@ function render(recompute=true, draft=false){
   stat.textContent=`${srcImg.naturalWidth}×${srcImg.naturalHeight}px · превью ${Math.round(st.sc*100)}%${st===stageDraft?' (черновик)':''} · расчёт ${Math.round(lastMs)} мс`;
 }
 
-/* click on the preview (mode «Стоит»): a support point on a leg tip; a click on a point removes it */
-out.style.cursor='crosshair';
-out.addEventListener('click',e=>{
-  if(P.mode!=='stand'){ return; }
-  const st=lastSt||stagePrev, b=out.getBoundingClientRect(); if(!st||!b.width) return;
-  const sx=crop.x+(e.clientX-b.left)*crop.w/b.width, sy=crop.y+(e.clientY-b.top)*crop.h/b.height;
-  const toScreen=crop.w/b.width;   // stage px per screen px
-  const pts=(P.pts||[]).slice();
-  const hit=pts.findIndex(p=>Math.hypot((p.x+st.pad)*st.sc-sx,(p.y+st.pad)*st.sc-sy)<=10*toScreen);
-  if(hit>=0) pts.splice(hit,1); else pts.push({x:Math.round(sx/st.sc-st.pad), y:Math.round(sy/st.sc-st.pad)});
-  P.pts=pts; lastKey='pts'; showPts(); schedule(true);
-});
-
 /* ---------- loading / export ---------- */
 function setImage(img){
   srcImg=img; stageFull=null;
-  P.ox=0; P.oy=0; P.rot=0; P.pts=[]; if(ctrls.ox){ syncUI(); }   // nudge, rotation and support points belong to the object
+  P.ox=0; P.oy=0; P.rot=0; P.gy=0; P.gtilt=0; if(ctrls.ox){ syncUI(); }   // nudge, rotation and ground line belong to the object
   stagePrev=buildStage(img,1400); stageDraft=null; lastGood=null; lastS=null; lastSt=null;
   queue(true);   // a new object is always computed once
 }
