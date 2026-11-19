@@ -50,6 +50,8 @@ button.primary.dirty{box-shadow:0 0 0 2px #ffb020}
 .grpTitle{display:flex;flex-direction:column;gap:2px;padding-bottom:6px;margin-bottom:2px;border-bottom:1px solid #5a5a5a}
 .grpTitle>span:first-child{font-weight:600;color:var(--text);letter-spacing:.02em}
 .grpHint{color:#9a9a9a;font-size:11px}
+.limRow{display:flex;align-items:center;gap:8px;margin:6px 0 0;color:var(--dim)}
+.limRow input{margin-left:auto}
 .grp.hit{border-color:#2a8fd8}
 .grp.hit .grpHint{color:#7cc4ff}
 #exportView{position:absolute;inset:0;background:var(--stage);overflow:auto;padding:12px;z-index:5}
@@ -196,19 +198,18 @@ const SLIDERS = [
   {k:'ox',    m:'both',  g:'pos', name:'Сдвиг по X (← −, + →)', min:-100,max:100,step:1, unit:'px'},
   {k:'oy',    m:'both',  g:'pos', name:'Сдвиг по Y (↑ −, + ↓)', min:-100,max:100,step:1, unit:'px'},
   {k:'rot',   m:'both',  g:'pos', name:'Поворот (− против, + по часовой)', min:-90,max:90,step:1, unit:'°'},
-  {k:'lim',   m:'both',  g:'limit', name:'Запас вокруг объекта (% от его размера)', min:0, max:150, step:1, unit:'%'},
 ];
 // slider groups shown as titled blocks; 'main' title depends on the mode
 const GROUPS = [
   {g:'main',    title:{stand:'Отброшенная тень', lie:'Тень'}, hint:{stand:'Тень от всего объекта по земле', lie:'Сдвинутый размытый силуэт'}},
   {g:'contact', title:{stand:'Контактная тень', lie:'Контактная тень'}, hint:{stand:'Плотная тень у мест касания и в закрытых местах', lie:'Тёмная кромка у края'}},
   {g:'pos',     title:{stand:'Положение тени', lie:'Положение тени'}, hint:{stand:'Подгонка под конкретный объект, в профиль не сохраняется', lie:'Подгонка под конкретный объект, в профиль не сохраняется'}},
-  {g:'limit',   title:{stand:'Граница тени', lie:'Граница тени'}, hint:{stand:'Тень не выйдет за синюю рамку: ползунки остановятся', lie:'Тень не выйдет за синюю рамку: ползунки остановятся'}},
+  {g:'limit',   title:{stand:'Ограничение размера тени', lie:'Ограничение размера тени'}, hint:{stand:'Пустое поле — без ограничения', lie:'Пустое поле — без ограничения'}},
 ];
 
 // Start values (not a profile). Profiles list starts empty.
 const DEFAULTS = {mode:'stand',A:125,E:38,len:100,ground:45,vol:70,persp:25,b0:1,b1:28,fade:55,
-  lift:30,spread:0,lb:35,op:70,cop:60,csize:8,cdif:50,cwide:35,cgam:100,cflat:45,cband:25,gy:0,ox:0,oy:0,rot:0,limon:false,lim:80,color:'#1d2433'};
+  lift:30,spread:0,lb:35,op:70,cop:60,csize:8,cdif:50,cwide:35,cgam:100,cflat:45,cband:25,gy:0,ox:0,oy:0,rot:0,limW:0,limH:0,color:'#1d2433'};
 let P = Object.assign({}, DEFAULTS);
 
 /* ---------- profiles storage ---------- */
@@ -223,7 +224,7 @@ function fillPresetList(sel){
   s.value = (sel && names.includes(sel)) ? sel : '';
   updatePresetState();
 }
-const PKEYS=['mode','A','E','len','ground','vol','persp','b0','b1','fade','lift','spread','lb','op','cop','csize','cdif','cwide','cgam','cflat','cband','limon','lim','color'];
+const PKEYS=['mode','A','E','len','ground','vol','persp','b0','b1','fade','lift','spread','lb','op','cop','csize','cdif','cwide','cgam','cflat','cband','limW','limH','color'];
 function pick(o){ const r={}; for(const k of PKEYS) r[k]=(o[k]!=null?o[k]:DEFAULTS[k]); r.gy=0; return r; }
 function updatePresetState(){
   const s=document.getElementById('preset'), p=allPresets()[s.value], st=document.getElementById('pState');
@@ -265,11 +266,14 @@ for(const s of SLIDERS){
   row.append(r,n,u); slidersEl.append(lbl,row);
   ctrls[s.k] = {r,n,lbl,row,m:s.m};
 }
-// "Ограничить" checkbox at the top of the limit block
-const limonEl=document.createElement('input'); limonEl.type='checkbox'; limonEl.id='limon';
-{ const l=document.createElement('label'); l.className='chk'; l.style.margin='6px 0 2px'; l.append(limonEl,' Ограничить размер тени');
-  const box=grpEls.limit.box; box.insertBefore(l, box.children[1]); }
-limonEl.addEventListener('change',()=>{ lastKey='limon'; P.limon=limonEl.checked; schedule(true); });
+// max shadow width / height in source pixels; empty = no limit
+const limWEl=document.createElement('input'), limHEl=document.createElement('input');
+const limNow=document.createElement('div'); limNow.className='hint'; limNow.id='limNow';
+{ const box=grpEls.limit.box;
+  const mk=(el,id,label)=>{ el.type='number'; el.id=id; el.min='1'; el.step='1'; el.placeholder='нет'; el.style.width='80px';
+    const row=document.createElement('label'); row.className='limRow'; row.append(label,el,' px'); box.appendChild(row);
+    el.addEventListener('input',()=>{ const v=Math.max(0,Math.round(+el.value||0)); lastKey=id; P[id]=v; schedule(true); }); };
+  mk(limWEl,'limW','Макс. ширина тени'); mk(limHEl,'limH','Макс. высота тени'); box.appendChild(limNow); }
 const modeSeg=document.getElementById('modeSeg');
 function showMode(){
   for(const b of modeSeg.querySelectorAll('button')) b.classList.toggle('on', b.dataset.mode===P.mode);
@@ -282,7 +286,7 @@ const fA=document.getElementById('fA'), fE=document.getElementById('fE');
 const colorEl=document.getElementById('color');
 function syncUI(){
   for(const s of SLIDERS){ ctrls[s.k].r.value=P[s.k]; ctrls[s.k].n.value=P[s.k]; }
-  limonEl.checked=!!P.limon;
+  limWEl.value=P.limW>0?P.limW:''; limHEl.value=P.limH>0?P.limH:'';
   fA.value=Math.round(P.A); fE.value=Math.round(P.E); colorEl.value=P.color; drawDial(); showMode();
 }
 fA.addEventListener('input',()=>{ lastKey='A'; P.A=+fA.value||0; drawDial(); schedule(true); });
@@ -710,16 +714,19 @@ function queue(recompute, draft=false){
 }
 // a parameter changed. schedule() = still dragging (draft), schedule(true) = final value
 function schedule(full){ if(liveEl.checked) queue(true, !full); else { dirty=true; showDirty(); } }
-// shadow size limit: object box grown by lim % of the object's larger side
-const LIMIT_KEYS=new Set(['lim','limon']);
-function limitBox(st){ const ow=st.right-st.left, oh=st.y0b-st.top, m=(P.lim/100)*Math.max(ow,oh); return [st.left-m, st.top-m, st.right+m, st.y0b+m]; }
+// shadow size limit: max width / height of the shadow itself, in source pixels (0 = no limit)
+const LIMIT_KEYS=new Set(['limW','limH']);
+const limitOn=()=>P.limW>0||P.limH>0;
+let lastBox=null;   // current shadow box in stage pixels
 function shadowBox(S,W,H){
   let x0=W,y0=H,x1=-1,y1=-1;
   for(let y=0;y<H;y++){ const o=y*W; let any=false; for(let x=0;x<W;x++) if(S[o+x]>0.03){ any=true; if(x<x0)x0=x; if(x>x1)x1=x; } if(any){ if(y<y0)y0=y; y1=y; } }
   return x1<0?null:[x0,y0,x1+1,y1+1];
 }
-function exceedsLimit(S,st){ const b=shadowBox(S,st.W,st.H); if(!b) return false; const L=limitBox(st); return b[0]<L[0]||b[1]<L[1]||b[2]>L[2]||b[3]>L[3]; }
-function limitNote(t){ if(grpEls.limit) grpEls.limit.hint.textContent=t||grpEls.limit.G.hint[P.mode]; grpEls.limit&&grpEls.limit.box.classList.toggle('hit',!!t); }
+function boxSizePx(b,st){ return b?[Math.round((b[2]-b[0])/st.sc), Math.round((b[3]-b[1])/st.sc)]:[0,0]; }
+function exceedsLimit(b,st){ if(!b) return false; const [w,h]=boxSizePx(b,st); return (P.limW>0&&w>P.limW)||(P.limH>0&&h>P.limH); }
+function limitNote(t){ if(grpEls.limit) grpEls.limit.hint.textContent=t||(limitOn()?'Ползунки остановятся, если тень станет больше заданного':grpEls.limit.G.hint[P.mode]); grpEls.limit&&grpEls.limit.box.classList.toggle('hit',!!t); }
+function showSizeNow(st){ const [w,h]=boxSizePx(lastBox,st); const el=document.getElementById('limNow'); if(el) el.textContent=lastBox?`Тень сейчас: ${w} × ${h} px`:'Тени нет'; }
 // only the picture changed (background, frame, colour…): reuse the last computed shadow
 function redraw(){ queue(false); }
 function showDirty(){ updBtn.classList.toggle('dirty',dirty); updBtn.textContent=dirty?'Обновить тень •':'Обновить тень'; }
@@ -752,7 +759,7 @@ function cropRect(st){
   if(document.getElementById('frame').value==='all') return {x:0,y:0,w:st.W,h:st.H};
   const ow=st.right-st.left, oh=st.y0b-st.top, m=0.45*Math.max(ow,oh);
   let a=st.left-m, b=st.top-m*0.6, c=st.right+m, d=st.y0b+m;
-  if(P.limon){ const L=limitBox(st), pd=8; a=Math.min(a,L[0]-pd); b=Math.min(b,L[1]-pd); c=Math.max(c,L[2]+pd); d=Math.max(d,L[3]+pd); }   // keep the limit frame in view
+  if(limitOn() && lastBox){ const L=lastBox, pd=8; a=Math.min(a,L[0]-pd); b=Math.min(b,L[1]-pd); c=Math.max(c,L[2]+pd); d=Math.max(d,L[3]+pd); }   // keep the shadow box in view
   const x0=Math.max(0,Math.floor(a)), y0=Math.max(0,Math.floor(b));
   const x1=Math.min(st.W,Math.ceil(c)), y1=Math.min(st.H,Math.ceil(d));
   return {x:x0,y:y0,w:x1-x0,h:y1-y0};
@@ -772,15 +779,15 @@ function render(recompute=true, draft=false){
   if(sunMode.checked && sunPt) angleFromSun();
   if(recompute || !lastS){
     const t0=performance.now();
-    let S=computeShadow(st,P);
-    if(P.limon && exceedsLimit(S,st)){
+    let S=computeShadow(st,P), box=shadowBox(S,st.W,st.H);
+    if(limitOn() && exceedsLimit(box,st)){
       if(lastGood && !LIMIT_KEYS.has(lastKey)){
         // stop at the last value that fit: put the previous settings back
-        P=Object.assign({},lastGood,{limon:P.limon,lim:P.lim}); syncUI(); S=computeShadow(st,P);
-        limitNote('Достигнута граница тени: дальше этот ползунок не идёт.');
-      } else limitNote('Тень выходит за границу: уменьши длину, размытие или увеличь запас.');
-    } else { lastGood=P.limon?Object.assign({},P):null; limitNote(''); }   // remember only states that fit the limit
-    lastS=S; lastSt=st;
+        P=Object.assign({},lastGood,{limW:P.limW,limH:P.limH}); syncUI(); S=computeShadow(st,P); box=shadowBox(S,st.W,st.H);
+        limitNote('Достигнут предел размера: дальше этот ползунок не идёт.');
+      } else limitNote('Тень больше заданного размера: уменьши длину, размытие или рассеивание.');
+    } else { lastGood=limitOn()?Object.assign({},P):null; limitNote(''); }   // remember only states that fit the limit
+    lastS=S; lastSt=st; lastBox=box;
     lastMs=performance.now()-t0; dirty=false; showDirty();
   }
   updatePresetState();
@@ -792,11 +799,13 @@ function render(recompute=true, draft=false){
     octx.beginPath(); octx.moveTo(0,y0+0.5); octx.lineTo(st.W,y0+0.5); octx.stroke();
     octx.setLineDash([]); octx.beginPath(); octx.arc(st.xc,y0,4,0,Math.PI*2); octx.stroke(); octx.restore();
   }
-  if(P.limon){
-    const L=limitBox(st);
+  if(limitOn() && lastBox && !hideShadow){
+    // outline of the current shadow box, so its size is visible against the limit
+    const b=lastBox;
     octx.save(); octx.setLineDash([8,5]); octx.strokeStyle='#2a8fd8'; octx.lineWidth=Math.max(1,2*st.sc/0.46);
-    octx.strokeRect(L[0],L[1],L[2]-L[0],L[3]-L[1]); octx.restore();
+    octx.strokeRect(b[0]+0.5,b[1]+0.5,b[2]-b[0]-1,b[3]-b[1]-1); octx.restore();
   }
+  showSizeNow(st);
   if(sunMode.checked && sunPt){
     const x=sunPt.x*st.sc, y=sunPt.y*st.sc;
     octx.save(); octx.fillStyle='#ffd23a'; octx.strokeStyle='#7a5a00';
