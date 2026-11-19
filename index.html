@@ -151,7 +151,6 @@ button.primary.dirty{box-shadow:0 0 0 2px #ffb020}
         <option value="obj">Кадр: по объекту</option>
         <option value="all">Кадр: всё поле</option>
       </select>
-      <label class="chk"><input type="checkbox" id="showGround"> Линия земли</label>
       <button id="cmp" title="Держи, чтобы увидеть без тени">Без тени (держать)</button>
       <button id="upd" class="primary" title="Пересчитать тень с текущими настройками" hidden>Обновить тень</button>
       <label class="chk" title="Пересчитывать сразу при каждом изменении" hidden><input type="checkbox" id="live" checked> Живой просмотр</label>
@@ -294,6 +293,10 @@ for(const s of SLIDERS){
   ctrls[s.k] = {r,n,lbl,row,m:s.m};
 }
 // support points: count + "remove all"
+// "Показать линию" in the ground line block (off by default, Roman): only the preview hint, the shadow is the same
+{ const l=document.createElement('label'); l.className='chk'; l.style.marginTop='8px';
+  const cb=document.createElement('input'); cb.type='checkbox'; cb.id='showGround'; cb.checked=false;
+  l.append(cb,' Показать линию'); grpEls.gline.body.appendChild(l); }
 // max shadow width / height in source pixels; empty = no limit
 const limWEl=document.createElement('input'), limHEl=document.createElement('input');
 const limNow=document.createElement('div'); limNow.className='hint'; limNow.id='limNow';
@@ -307,7 +310,6 @@ function showMode(){
   for(const b of modeSeg.querySelectorAll('button')) b.classList.toggle('on', b.dataset.mode===P.mode);
   for(const s of SLIDERS){ const c=ctrls[s.k], vis=(c.m==='both'||c.m===P.mode); c.lbl.style.display=c.row.style.display=vis?'':'none'; }
   for(const k in grpEls){ const e=grpEls[k]; e.t.textContent=e.G.title[P.mode]; e.hint.textContent=e.G.hint[P.mode]; }
-  document.getElementById('showGround').parentElement.style.display = P.mode==='stand'?'':'none';
 }
 modeSeg.addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b) return; P.mode=b.dataset.mode; showMode(); schedule(true); });
 const fA=document.getElementById('fA'), fE=document.getElementById('fE');
@@ -878,7 +880,7 @@ function render(recompute=true, draft=false){
   compose(octx,st,S,!hideShadow);
   const y0=st.y0b+P.gy*st.sc;
   // the ground line: shown when the checkbox is on or the line was moved / tilted
-  if(P.mode==='stand' && (document.getElementById('showGround').checked || P.gy || P.gtilt)){
+  if(P.mode==='stand' && document.getElementById('showGround').checked){
     const t=Math.tan((P.gtilt||0)*Math.PI/180), yl=x=>y0+t*(st.xc-x);
     octx.save(); octx.setLineDash([8,5]); octx.lineWidth=Math.max(1,2*st.sc/0.46);
     octx.strokeStyle='#e0402a'; octx.beginPath(); octx.moveTo(0,yl(0)); octx.lineTo(st.W,yl(st.W)); octx.stroke();
