@@ -199,18 +199,17 @@ const SLIDERS = [
   {k:'cgam',  m:'stand', g:'contact', name:'Контраст (темнее в закрытых местах)', min:30, max:400, step:5, unit:'%'},
   {k:'cflat', m:'stand', g:'contact', name:'Сплющивание',  min:10, max:100, step:1, unit:'%'},
   {k:'cband', m:'stand', g:'contact', name:'Высота зоны (доля низа объекта)', min:3, max:60, step:1, unit:'%'},
-  {k:'gy',    m:'stand', g:'gline', name:'Высота линии (↑ −, + ↓)', min:-300,max:100,step:1, unit:'px'},
-  {k:'gtilt', m:'stand', g:'gline', name:'Наклон линии (− влево вверх, + вправо вверх)', min:-30,max:30,step:1, unit:'°'},
+  // position = shift X + the ground line (height, tilt); shift Y and rotation were removed as
+  // duplicates of the line (Roman 2026-11-20). P.oy / P.rot stay 0 in the engine.
   {k:'ox',    m:'both',  g:'pos', name:'Сдвиг по X (← −, + →)', min:-100,max:100,step:1, unit:'px'},
-  {k:'oy',    m:'both',  g:'pos', name:'Сдвиг по Y (↑ −, + ↓)', min:-100,max:100,step:1, unit:'px'},
-  {k:'rot',   m:'both',  g:'pos', name:'Поворот (− против, + по часовой)', min:-90,max:90,step:1, unit:'°'},
+  {k:'gy',    m:'stand', g:'pos', name:'Высота линии (↑ −, + ↓)', min:-300,max:100,step:1, unit:'px'},
+  {k:'gtilt', m:'stand', g:'pos', name:'Наклон линии (− влево вверх, + вправо вверх)', min:-30,max:30,step:1, unit:'°'},
 ];
 // slider groups shown as titled blocks; 'main' title depends on the mode
 const GROUPS = [
   {g:'main',    title:{stand:'Отброшенная тень', lie:'Тень'}, hint:{stand:'Тень от всего объекта по земле', lie:'Сдвинутый размытый силуэт'}},
   {g:'contact', title:{stand:'Контактная тень', lie:'Контактная тень'}, hint:{stand:'Плотная тень у мест касания и в закрытых местах', lie:'Тёмная кромка у края'}},
-  {g:'gline',   title:{stand:'Линия земли', lie:'Линия земли'}, hint:{stand:'От неё строится тень. По умолчанию — через самую нижнюю точку объекта. Если ножки стоят на разной глубине, подними линию между передними и задними. Подгонка под объект, в профиль не сохраняется.', lie:'Работает только в режиме «Стоит».'}},
-  {g:'pos',     title:{stand:'Положение тени', lie:'Положение тени'}, hint:{stand:'Подгонка под конкретный объект, в профиль не сохраняется', lie:'Подгонка под конкретный объект, в профиль не сохраняется'}},
+  {g:'pos',     title:{stand:'Положение тени', lie:'Положение тени'}, hint:{stand:'Тень строится от линии земли (по умолчанию — через самую нижнюю точку объекта). Высота и наклон линии двигают тень, не отрывая её от объекта. Подгонка под объект, в профиль не сохраняется.', lie:'Сдвиг тени. Подгонка под объект, в профиль не сохраняется.'}},
   {g:'limit',   title:{stand:'Ограничение размера тени', lie:'Ограничение размера тени'}, hint:{stand:'Пустое поле — без ограничения', lie:'Пустое поле — без ограничения'}},
 ];
 
@@ -296,7 +295,7 @@ for(const s of SLIDERS){
 // "Показать линию" in the ground line block (off by default, Roman): only the preview hint, the shadow is the same
 { const l=document.createElement('label'); l.className='chk'; l.style.marginTop='8px';
   const cb=document.createElement('input'); cb.type='checkbox'; cb.id='showGround'; cb.checked=false;
-  l.append(cb,' Показать линию'); grpEls.gline.body.appendChild(l); }
+  l.append(cb,' Показать линию'); grpEls.pos.body.appendChild(l); }
 // max shadow width / height in source pixels; empty = no limit
 const limWEl=document.createElement('input'), limHEl=document.createElement('input');
 const limNow=document.createElement('div'); limNow.className='hint'; limNow.id='limNow';
