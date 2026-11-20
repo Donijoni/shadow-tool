@@ -53,6 +53,10 @@ button.primary.dirty{box-shadow:0 0 0 2px #ffb020}
 .grpTop{display:flex;align-items:center;gap:6px}
 .grpArrow{width:10px;color:var(--dim)}
 .grpName{font-weight:600;color:var(--text);letter-spacing:.02em;flex:1}
+.shSize{margin-left:auto;font-weight:600;color:var(--text)}
+#profileBox .row{flex-wrap:wrap}
+#profileBox #preset{min-width:0;width:100%}
+#bar #stat{margin-left:12px}
 .grpToggle{display:flex;align-items:center;gap:4px;color:var(--dim);cursor:pointer}
 .grp.closed .grpTitle{border-bottom:0;padding-bottom:0;margin-bottom:0}
 .grp.off .grpBody{opacity:.4}
@@ -83,22 +87,7 @@ button.primary.dirty{box-shadow:0 0 0 2px #ffb020}
   <div id="panel">
     <h1>Тень (прототип)</h1>
 
-    <div class="lbl" style="margin-top:0">Профиль <span id="pState" class="hint"></span></div>
-    <div class="row">
-      <select id="preset" style="flex:1" title="Выбор профиля сразу применяет его настройки"></select>
-    </div>
-    <div class="row">
-      <input type="text" id="pName" placeholder="Имя нового профиля" style="flex:1;min-width:0">
-      <button id="pSave" title="Сохранить текущие настройки под этим именем">Сохранить</button>
-    </div>
-    <div class="row">
-      <button id="pUpd" title="Записать текущие настройки в выбранный профиль">Обновить</button>
-      <button id="pRen" title="Переименовать выбранный профиль в имя из поля выше">Переименовать</button>
-      <button id="pDel" title="Удалить выбранный профиль">Удалить</button>
-    </div>
-    <div class="hint" id="pMsg"></div>
-
-    <div class="sec">
+    <div class="sec" style="border-top:0;padding-top:0;margin-top:0">
       <div class="lbl">Объект</div>
       <div class="seg" id="modeSeg">
         <button data-mode="stand" title="Стоит на земле: персонаж, дерево, домик. Тень ложится от основания по земле.">Стоит</button>
@@ -109,7 +98,7 @@ button.primary.dirty{box-shadow:0 0 0 2px #ffb020}
     <div class="sec">
       <div class="lbl">Свет</div>
       <div id="dial">
-        <svg id="dialSvg" width="140" height="140" viewBox="0 0 140 140">
+        <svg id="dialSvg" width="120" height="120" viewBox="0 0 140 140">
           <circle cx="70" cy="70" r="62" fill="#3f3f3f" stroke="#cfcfcf" stroke-width="1.2"/>
           <line x1="64" y1="70" x2="76" y2="70" stroke="#cfcfcf"/>
           <line x1="70" y1="64" x2="70" y2="76" stroke="#cfcfcf"/>
@@ -121,17 +110,34 @@ button.primary.dirty{box-shadow:0 0 0 2px #ffb020}
           <label>Высота <input type="number" id="fE" min="3" max="90" step="1">°</label>
         </div>
       </div>
-      <div class="hint">Точка — откуда светит солнце. Центр круга — солнце в зените, край — у горизонта. Shift — шаг 15°.</div>
+      <div class="hint">Точка — откуда светит солнце: центр — зенит, край — горизонт.</div>
     </div>
-
-    <div class="sec" id="sliders"></div>
 
     <div class="sec">
       <div class="row">
         <span class="lbl" style="margin:0">Цвет</span>
         <input type="color" id="color">
-        <span class="hint">на улице лучше тёмно-синий, не чёрный</span>
       </div>
+    </div>
+
+    <div class="sec" id="sliders"></div>
+
+    <!-- profiles: moved by the script into the folding section "Профиль" at the bottom -->
+    <div id="profileBox">
+      <div class="row"><span class="hint" id="pState"></span></div>
+      <div class="row">
+        <select id="preset" style="flex:1" title="Выбор профиля сразу применяет его настройки"></select>
+      </div>
+      <div class="row">
+        <input type="text" id="pName" placeholder="Имя нового профиля" style="flex:1;min-width:0">
+        <button id="pSave" title="Сохранить текущие настройки под этим именем">Сохранить</button>
+      </div>
+      <div class="row">
+        <button id="pUpd" title="Записать текущие настройки в выбранный профиль">Обновить</button>
+        <button id="pRen" title="Переименовать выбранный профиль в имя из поля выше">Переименовать</button>
+        <button id="pDel" title="Удалить выбранный профиль">Удалить</button>
+      </div>
+      <div class="hint" id="pMsg"></div>
     </div>
   </div>
 
@@ -155,6 +161,7 @@ button.primary.dirty{box-shadow:0 0 0 2px #ffb020}
       <button id="upd" class="primary" title="Пересчитать тень с текущими настройками" hidden>Обновить тень</button>
       <label class="chk" title="Пересчитывать сразу при каждом изменении" hidden><input type="checkbox" id="live" checked> Живой просмотр</label>
       <button id="export">Сохранить PNG тени</button>
+      <span id="shSize" class="shSize"></span>
       <span id="stat"></span>
     </div>
     <div id="view"><canvas id="out"></canvas></div>
@@ -209,8 +216,9 @@ const SLIDERS = [
 const GROUPS = [
   {g:'main',    title:{stand:'Отброшенная тень', lie:'Тень'}, hint:{stand:'Тень от всего объекта по земле', lie:'Сдвинутый размытый силуэт'}},
   {g:'contact', title:{stand:'Контактная тень', lie:'Контактная тень'}, hint:{stand:'Плотная тень у мест касания и в закрытых местах', lie:'Тёмная кромка у края'}},
-  {g:'pos',     title:{stand:'Положение тени', lie:'Положение тени'}, hint:{stand:'Тень строится от линии земли (по умолчанию — через самую нижнюю точку объекта). Высота и наклон линии двигают тень, не отрывая её от объекта. Подгонка под объект, в профиль не сохраняется.', lie:'Сдвиг тени. Подгонка под объект, в профиль не сохраняется.'}},
+  {g:'pos',     title:{stand:'Положение тени', lie:'Положение тени'}, hint:{stand:'Под объект, в профиль не сохраняется.', lie:'Под объект, в профиль не сохраняется.'}},
   {g:'limit',   title:{stand:'Ограничение размера тени', lie:'Ограничение размера тени'}, hint:{stand:'Пустое поле — без ограничения', lie:'Пустое поле — без ограничения'}},
+  {g:'profile', title:{stand:'Профиль', lie:'Профиль'}, hint:{stand:'', lie:''}},
 ];
 
 // Start values (not a profile). Profiles list starts empty.
@@ -291,19 +299,21 @@ for(const s of SLIDERS){
   row.append(r,n,u); slidersEl.append(lbl,row);
   ctrls[s.k] = {r,n,lbl,row,m:s.m};
 }
-// support points: count + "remove all"
-// "Показать линию" in the ground line block (off by default, Roman): only the preview hint, the shadow is the same
-{ const l=document.createElement('label'); l.className='chk'; l.style.marginTop='8px';
+// "линия" in the title of «Положение тени», like «вкл» of the contact shadow (off by default,
+// Roman): shows the ground line in the preview; the shadow is the same
+{ const l=document.createElement('label'); l.className='grpToggle'; l.title='Показать линию земли, от которой строится тень';
   const cb=document.createElement('input'); cb.type='checkbox'; cb.id='showGround'; cb.checked=false;
-  l.append(cb,' Показать линию'); grpEls.pos.body.appendChild(l); }
+  l.append(cb,' линия'); grpEls.pos.top.appendChild(l); cb.addEventListener('change',()=>redraw()); }
+// profiles block (made in the page) into the folding section at the bottom; "· изменён" in its title
+grpEls.profile.body.appendChild(document.getElementById('profileBox'));
+grpEls.profile.top.appendChild(document.getElementById('pState'));
 // max shadow width / height in source pixels; empty = no limit
 const limWEl=document.createElement('input'), limHEl=document.createElement('input');
-const limNow=document.createElement('div'); limNow.className='hint'; limNow.id='limNow';
 { const box=grpEls.limit.body;
   const mk=(el,id,label)=>{ el.type='number'; el.id=id; el.min='1'; el.step='1'; el.placeholder='нет'; el.style.width='80px';
     const row=document.createElement('label'); row.className='limRow'; row.append(label,el,' px'); box.appendChild(row);
     el.addEventListener('input',()=>{ const v=Math.max(0,Math.round(+el.value||0)); lastKey=id; P[id]=v; schedule(true); }); };
-  mk(limWEl,'limW','Макс. ширина тени'); mk(limHEl,'limH','Макс. высота тени'); box.appendChild(limNow); }
+  mk(limWEl,'limW','Макс. ширина тени'); mk(limHEl,'limH','Макс. высота тени'); }
 const modeSeg=document.getElementById('modeSeg');
 function showMode(){
   for(const b of modeSeg.querySelectorAll('button')) b.classList.toggle('on', b.dataset.mode===P.mode);
@@ -811,7 +821,8 @@ function shadowBox(S,W,H){
 function boxSizePx(b,st){ return b?[Math.round((b[2]-b[0])/st.sc), Math.round((b[3]-b[1])/st.sc)]:[0,0]; }
 function exceedsLimit(b,st){ if(!b) return false; const [w,h]=boxSizePx(b,st); return (P.limW>0&&w>P.limW)||(P.limH>0&&h>P.limH); }
 function limitNote(t){ if(grpEls.limit) grpEls.limit.hint.textContent=t||(limitOn()?'Ползунки остановятся, если тень станет больше заданного':grpEls.limit.G.hint[P.mode]); grpEls.limit&&grpEls.limit.box.classList.toggle('hit',!!t); }
-function showSizeNow(st){ const [w,h]=boxSizePx(lastBox,st); const el=document.getElementById('limNow'); if(el) el.textContent=lastBox?`Тень сейчас: ${w} × ${h} px`:'Тени нет'; }
+// current shadow size: always visible in the top bar (Roman: useful, should be higher up)
+function showSizeNow(st){ const [w,h]=boxSizePx(lastBox,st); const el=document.getElementById('shSize'); if(el) el.textContent=lastBox?`Тень: ${w} × ${h} px`:'Тени нет'; }
 // only the picture changed (background, frame, colour…): reuse the last computed shadow
 function redraw(){ queue(false); }
 function showDirty(){ updBtn.classList.toggle('dirty',dirty); updBtn.textContent=dirty?'Обновить тень •':'Обновить тень'; }
